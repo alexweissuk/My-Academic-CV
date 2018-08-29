@@ -1,4 +1,4 @@
-%% Copyright 2016 Philip Kime
+%% Copyright 2017 Philip Kime
 %%
 %% This work may be distributed and/or modified under the
 %% conditions of the LaTeX Project Public License, either version 1.3
@@ -12,14 +12,39 @@
 %% 
 %% The Current Maintainer of this work is Philip Kime.
 
-\ProvidesFile{apa.bbx}[2016/03/01\space v6.8\space APA biblatex references style]
+\ProvidesFile{apa.bbx}[2017/11/05\space v7.5\space APA biblatex references style]
 \RequireBiber[3]
 \RequireBibliographyStyle{standard}
 \urlstyle{rm} % APA examples all have URLs in same font as text
 
+% Declare the language mapping suffix
+\DeclareLanguageMappingSuffix{-apa}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  Automated capitalisation after colons
+%  (http://blog.apastyle.org/apastyle/2011/06/capitalization-after-colons.html)
+%  Copied and adapted from ieee.bbx
+
+% {<process>} {*} {<text>}
+\newcommand*{\bbx@colon@search}[3]{%
+  \bbx@colon@search@aux#1#2\empty#3: \stop
+}
+\long\def\bbx@colon@search@aux#1#2#3: #4\stop{%
+  \expandafter#1\expandafter#2\expandafter{#3}%
+  \ifblank{#4}
+    {}
+    {%
+      : %
+      \bbx@colon@search@aux#1#2\empty#4\stop
+    }%
+}
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %  Used to join citations/references to
-%  extrayear
+%  extradate
 
 \newcommand{\apashortdash}{-}
 
@@ -74,56 +99,71 @@
 %
 
 % Date formats. Suppress end range of less specific fields
-
-\newcommand*{\mkbibrangeapalong}[1]{%
-  \ifthenelse{\equal{#1}{url}}
-    {\printtext{%
-     \mkbibdateapalongmdy{#1year}{#1month}{#1day}%
-     \iffieldundef{#1endyear}%
-       {}%
-       {\iffieldequalstr{#1endyear}{}% open-ended range?
-         {\mbox{\bibdatedash}}
-         {\bibdatedash%
-          \iffieldsequal{#1year}{#1endyear}%
-            {\iffieldsequal{#1month}{#1endmonth}%
-              {\iffieldsequal{#1day}{#1endday}%
-                {}%
-                {\mkbibdateapalongmdy{}{}{#1endday}}}%
-              {\mkbibdateapalongmdy{}{#1endmonth}{#1endday}}}%
-            {\mkbibdateapalongmdy{#1endyear}{#1endmonth}{#1endday}}}}}}
-    {\printtext{%
-     \mkbibdateapalong{#1year}{#1month}{#1day}%
-     \iffieldundef{#1endyear}%
-       {}%
-       {\iffieldequalstr{#1endyear}{}% open-ended range?
-         {\mbox{\bibdatedash}}
-         {\bibdatedash%
-          \iffieldsequal{#1year}{#1endyear}%
-            {\iffieldsequal{#1month}{#1endmonth}%
-              {\iffieldsequal{#1day}{#1endday}%
-                {}%
-                {\mkbibdateapalong{}{}{#1endday}}}%
-              {\mkbibdateapalong{}{#1endmonth}{#1endday}}}%
-            {\mkbibdateapalong{#1endyear}{#1endmonth}{#1endday}}}}}}}
-
+\newcommand*{\mkdaterangeapalong}[1]{%
+  \blx@metadateinfo{#1}%
+  \iffieldundef{#1year}{}
+    {\datecircaprint
+     \ifstrequal{#1}{url}% URL dates are unlikely to be BCE ...
+       {\printtext{%
+           \mkbibdateapalongmdy{#1year}{#1month}{#1day}%
+           \iffieldundef{#1endyear}%
+             {}%
+             {\iffieldequalstr{#1endyear}{}% open-ended range?
+               {\mbox{\bibdatedash}}
+               {\bibdatedash%
+                \iffieldsequal{#1year}{#1endyear}%
+                  {\iffieldsequal{#1month}{#1endmonth}%
+                    {\iffieldsequal{#1day}{#1endday}%
+                      {}%
+                      {\mkbibdateapalongmdy{}{}{#1endday}}}%
+                    {\mkbibdateapalongmdy{}{#1endmonth}{#1endday}}}%
+                  {\mkbibdateapalongmdy{#1endyear}{#1endmonth}{#1endday}}}}%
+           \dateuncertainprint}}
+       {\printtext{%
+           \mkbibdateapalong{#1year}{#1month}{#1day}%
+           \dateeraprint{#1year}%
+           \iffieldundef{#1endyear}%
+             {}%
+             {\iffieldequalstr{#1endyear}{}% open-ended range?
+               {\mbox{\bibdatedash}}
+               {\bibdatedash%
+                \iffieldsequal{#1year}{#1endyear}%
+                  {\iffieldsequal{#1month}{#1endmonth}%
+                    {\iffieldsequal{#1day}{#1endday}%
+                      {}%
+                      {\mkbibdateapalong{}{}{#1endday}}}%
+                    {\mkbibdateapalong{}{#1endmonth}{#1endday}}}%
+                  {\mkbibdateapalong{#1endyear}{#1endmonth}{#1endday}%
+                 \dateeraprint{#1endyear}}}%
+             \enddateuncertainprint}}}}}
 
 % Only for DATE as only \printdateextra is used
-\newcommand*{\mkbibrangeapalongextra}[1]{%
-    \printtext{%
-     \mkbibdateapalongextra{#1year}{#1month}{#1day}%
-     \iffieldundef{#1endyear}%
-       {}%
-       {\iffieldequalstr{#1endyear}{}% open-ended range?
-         {\mbox{\bibdatedash}}
-         {\bibdatedash%
-          \iffieldsequal{#1year}{#1endyear}%
-            {\iffieldsequal{#1month}{#1endmonth}%
-              {\iffieldsequal{#1day}{#1endday}%
-                {}%
-                {\mkbibdateapalongextra{}{}{#1endday}}}
-              {\mkbibdateapalongextra{}{#1endmonth}{#1endday}}}
-            {\mkbibdateapalongextra{#1endyear}{#1endmonth}{#1endday}}}}}}
+\newcommand*{\mkdaterangeapalongextra}[1]{%
+  \blx@metadateinfo{#1}%
+  \iffieldundef{#1year}{}
+    {\printtext{%
+      \datecircaprint
+      \mkbibdateapalongextra{#1year}{#1month}{#1day}%
+      \dateeraprint{#1year}%
+      \dateuncertainprint
+      \iffieldundef{#1endyear}%
+        {}%
+        {\iffieldequalstr{#1endyear}{}% open-ended range?
+          {\mbox{\bibdatedash}}
+          {\bibdatedash%
+           \iffieldsequal{#1year}{#1endyear}%
+             {\iffieldsequal{#1month}{#1endmonth}%
+                {\iffieldsequal{#1day}{#1endday}%
+                  {}%
+                  {\mkbibdateapalongextra{}{}{#1endday}}}
+                {\mkbibdateapalongextra{}{#1endmonth}{#1endday}}}
+             {\mkbibdateapalongextra{#1endyear}{#1endmonth}{#1endday}%
+              \dateeraprint{#1endyear}}}%
+         \enddateuncertainprint}}}}
 
+\AtEndPreamble{%
+  \renewcommand*{\datecircaprint}{%
+    \ifdatecirca{\biblcstring{circa}\printdelim{datecircadelim}}{}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -146,15 +186,15 @@
 % (APA 6.12) Five author max before "et al" and a one author truncation policy
 %            However, only after the first cite, see the labelname format
 %            in .cbx. It's also overridden per-entry by uniquelist
-% (APA 6.x)  citation tracking is global
-% (APA 6.14) uses initials to disambiguate shared surnames
-% (APA 6.16) uses year postfix to disambiguate multiple items in same year
+% (APA 6.x)  Citation tracking is global
+% (APA 6.14) Use initials to disambiguate shared surnames
+% (APA 6.16) Use year postfix to disambiguate multiple items in same year
 % (APA 6.10) Never reference anything not cited
-% (APA 6.25) author initials only
-% (APA 6.25) sorting is nyt but we need to account for PUBSTATE which comes
+% (APA 6.25) Author initials only
+% (APA 6.25) Sorting is nyt but we need to account for PUBSTATE which comes
 %            after all normal cites for the same author
 
-\DeclareSortingScheme{apa}{
+\DeclareSortingTemplate{apa}{
   \sort{
     \field{presort}
   }
@@ -170,22 +210,24 @@
     \field{director}
     \field{producer}
     \field{execproducer}
-    \field{origauthor}
     \field{sorttitle}
     \field{title}
+  }
+  \sort{
+    \field{pubstate}
   }
   \sort{
     \field{sortyear}
     \field{year}
-    \field{pubstate}
+    \literal{-2000000000}% APA has "nodates" coming first
   }
   \sort{
     \field{sorttitle}
     \field{title}
   }
   \sort{
-    \field[padside=left,padwidth=4,padchar=0]{volume}
-    \literal{0000}
+    \field{volume}
+    \literal{0}
   }
 }
 
@@ -194,6 +236,7 @@
 \DeclareLabeldate{%
   \field{pubstate}
   \field{date}
+  \field{year}%legacy - no EDTF support
   \literal{nodate}
 }
 
@@ -201,28 +244,33 @@
 % ellipsis from 7th to n-1 in bib, there might be some really strange
 % edge cases which can't be handled as this needs treating in the style
 % after biber has finished. Very unlikely though.
-\ExecuteBibliographyOptions{labeldate=true,%
-                            sorting=apa,%
+\ExecuteBibliographyOptions{%
+                            abbreviate=true,%
                             autocite=inline,%
                             backref=true,%
+                            citetracker=true,%
+                            date=apalong,%
+                            dateabbrev=false,%
+                            datecirca=true,%
+                            dateera=christian,%
+                            labeldate=apalong,%
+                            dateuncertain=true,%
+                            eventdate=comp,%
+                            labeldateparts=true,%
+                            maxbibnames=7,%
+                            maxcitenames=2,%
+                            minbibnames=6,%
+                            mincitenames=1,%
+                            mincrossrefs=999,%
+                            origdate=apalong,%
                             pagetracker=true,%
-                            useprefix=true,%
-                            usetranslator=true,%
+                            sorting=apa,%
                             uniquelist=minyear,%
                             uniquename=full,%
-                            citetracker=true,%
-                            maxcitenames=2,%
-                            mincitenames=1,%
-                            maxbibnames=7,%
-                            minbibnames=6,%
-                            abbreviate=true,%
-                            mincrossrefs=999,%
-                            date=apalong,%
-                            datelabel=apalong,%
-                            origdate=apalong,%
+                            uniqueprimaryauthor=true,%
                             urldate=apalong,%
-                            eventdate=comp,
-                            dateabbrev=false}
+                            useprefix=true,%
+                            usetranslator=true}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -360,12 +408,11 @@
 \DeclareNameAlias{default}{apaauthor}
 
 \DeclareNameFormat{apaauthor}{%
-  \nameparts{#1}%
   \ifthenelse{\value{listcount}=\maxprtauth\AND\value{listcount}<\value{listtotal}}
     {\addcomma\addspace\ldots\addspace}
     {\ifthenelse{\value{listcount}>\maxprtauth\AND\value{listcount}<\value{listtotal}}
       {}
-      {\iffieldequalstr{doubtfulauthor}{true}
+      {\iffieldannotation{uncertain}
         {\mkbibbrackets{\usebibmacro{name:apa:family-given}%
                          {\namepartfamily}%
                          {\namepartgiven}%
@@ -379,7 +426,7 @@
           {\namepartprefix}%
           {\namepartsuffix}}}}%
     \ifthenelse{\value{listcount}=\value{listtotal}}%
-      {\ifmorenames{\andothersdelim\bibstring{andothers}}{}}{}}
+      {\ifmorenames{\printdelim{andothersdelim}\bibstring{andothers}}{}}{}}
 
 \renewbibmacro*{author}{%
   \ifnameundef{author}
@@ -393,7 +440,7 @@
         \printnames[apaauthor][-\value{listtotal}]{with}}
         \setunit*{\addspace}}}%
   \newunit\newblock%
-  \usebibmacro{labelyear+extrayear}}
+  \usebibmacro{labelyear+extradate}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -405,12 +452,12 @@
 % (APA 6.27) Use blank for long lists
 % (APA 4.03) Serial comma for lists of three or more
 
-\AtBeginBibliography{\renewcommand*{\finalnamedelim}{%
-    \ifthenelse{\value{listcount}>\maxprtauth}
-      {}
-      {\ifthenelse{\value{liststop}>2}
-         {\finalandcomma\addspace\&\space}
-         {\addspace\&\space}}}}
+\DeclareDelimFormat[bib]{finalnamedelim}{%
+  \ifthenelse{\value{listcount}>\maxprtauth}
+    {}
+    {\ifthenelse{\value{liststop}>2}
+       {\finalandcomma\addspace\&\space}
+       {\addspace\&\space}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -420,6 +467,7 @@
 %            Months and days go into parenthesis with year, if set
 % (APA 6.29) Issue goes where month normally goes if it
 %            is set.
+% (APA 7.10) circa or uncertain dates in brackets
 
 % Make sure endmonth gets an expansion too
 \DeclareFieldFormat{endmonth}{\mkbibmonth{#1}}
@@ -432,17 +480,17 @@
       \iffieldundef{endmonth}{}{/\printfield{endmonth}}}}
     {\addcomma\space\printfield{issue}}}
 
-\newbibmacro*{labelyear+extrayear}{%
+\newbibmacro*{labelyear+extradate}{%
   \iffieldundef{labelyear}
     {\iffieldundef{origyear}
       {}
-      {\printtext[yearorunkyear]{\printfield[noformat]{origyear}}}}%
-    {\printtext[yearorunkyear]{\printdateextralabel}}}
+      {\printtext[apadate]{\printorigdate}}}%
+    {\printtext[apadate]{\printlabeldateextra}}}
 
-\DeclareFieldFormat{yearorunkyear}{%
-  \ifthenelse{\iffieldequalstr{doubtfuldate}{true}}
-    {\mkbibbrackets{ca\adddot\addspace#1}}
-    {\mkbibparens{#1}}}
+\DeclareFieldFormat{apadate}{%
+  \ifboolexpr{ test {\ifdatecirca} or test {\ifdateuncertain} }
+    {\printtext{\mkbibbrackets{#1}}}
+    {\printtext{\mkbibparens{#1}}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -451,21 +499,21 @@
 % (APA 6.29) General format of titles.
 %            Ugly Chicago-style lowercasing of English titles
 
-\DeclareFieldFormat{apacase}{\MakeSentenceCase*{#1}}
+\DeclareFieldFormat{apacase}{\bbx@colon@search\MakeSentenceCase*{#1}}
 
 \DeclareFieldFormat{issuetitle}{#1\isdot}
 \DeclareFieldFormat{title}{\iffieldequalstr{titleisdescription}{true}{\mkbibbrackets{#1}}{\mkbibemph{#1}\isdot}}
-\DeclareFieldFormat{origtitle}{\mkbibemph{\MakeSentenceCase*{#1}}\isdot}
+\DeclareFieldFormat{origtitle}{\mkbibemph{\bbx@colon@search\MakeSentenceCase*{#1}}\isdot}
 \DeclareFieldFormat[article]{title}{#1\isdot}
-\DeclareFieldFormat[article]{origtitle}{\MakeSentenceCase*{#1}\isdot}
+\DeclareFieldFormat[article]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
 \DeclareFieldFormat[inbook]{title}{#1\isdot}
-\DeclareFieldFormat[inbook]{origtitle}{\MakeSentenceCase*{#1}\isdot}
+\DeclareFieldFormat[inbook]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
 \DeclareFieldFormat[incollection]{title}{#1\isdot}
-\DeclareFieldFormat[incollection]{origtitle}{\MakeSentenceCase*{#1}\isdot}
+\DeclareFieldFormat[incollection]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
 \DeclareFieldFormat[inproceedings]{title}{#1\isdot}
-\DeclareFieldFormat[inproceedings]{origtitle}{\MakeSentenceCase*{#1}\isdot}
+\DeclareFieldFormat[inproceedings]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
 \DeclareFieldFormat[proceedings]{title}{#1\isdot}
-\DeclareFieldFormat[proceedings]{origtitle}{\MakeSentenceCase*{#1}\isdot}
+\DeclareFieldFormat[proceedings]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -494,9 +542,9 @@
 % (APA 6.29)      Additional {main}title information in brackets (using)
 %                 {MAIN}TITLEADDON field. Colon after maintitle.
 
-\DeclareFieldFormat{titleaddon}{\mkbibbrackets{\MakeSentenceCase*{#1}}}
-\DeclareFieldFormat{maintitleaddon}{\mkbibbrackets{\MakeSentenceCase*{#1}}}
-\DeclareFieldFormat{booktitleaddon}{\mkbibbrackets{\MakeSentenceCase*{#1}}}
+\DeclareFieldFormat{titleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
+\DeclareFieldFormat{maintitleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
+\DeclareFieldFormat{booktitleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
 
 \newbibmacro*{bookaddinfo}{%
   \ifthenelse{\iffieldundef{edition}\AND\iffieldundef{volumes}}
@@ -535,7 +583,7 @@
        \ifnameundef{director}\AND%
        \ifnameundef{writer}}
         {\newunit\newblock
-         \usebibmacro{labelyear+extrayear}}
+         \usebibmacro{labelyear+extradate}}
         {}}}
 
 \renewbibmacro*{maintitle}{%
@@ -642,7 +690,6 @@
 % (APA 7.02 Example 27) ... unless there is no author
 
 \DeclareNameFormat{apanames}{%
-  \nameparts{#1}%
   \ifthenelse{\value{listcount}=\maxprtauth\AND\value{listcount}<\value{listtotal}}
     {\addcomma\addspace\ldots}
     {\ifthenelse{\value{listcount}>\maxprtauth\AND\value{listcount}<\value{listtotal}}
@@ -654,7 +701,7 @@
         {\namepartprefix}%
         {\namepartsuffix}}}%
     \ifthenelse{\value{listcount}=\value{listtotal}}%
-      {\ifmorenames{\andothersdelim\bibstring{andothers}}{}}{}}
+      {\ifmorenames{\printdelim{andothersdelim}\bibstring{andothers}}{}}{}}
 
 \renewbibmacro*{author/editor}{%
   \ifnameundef{author}
@@ -677,7 +724,7 @@
        % various year placement tests
        \clearname{editor}%
        \setunit{\adddot\addspace}%
-       \usebibmacro{labelyear+extrayear}%
+       \usebibmacro{labelyear+extradate}%
        \setunit{\adddot\addspace}}}
 
 %
@@ -687,59 +734,64 @@
 % (APA 6.27) Name format. Don't capitalise prefixes
 % (APA 6.27) Full name disambiguation using brackets
 
-% #1 = last name
-% #2 = first name
-% #3 = first name (initials)
-% #4 = name prefix, a.k.a. 'von part'
-% #5 = name affix, a.k.a. 'junior part'
+% #1 = family name
+% #2 = given name
+% #3 = given name (initials)
+% #4 = name prefix
+% #5 = name suffix
 
 \newbibmacro*{name:apa:family-given}[5]{%
   \ifuseprefix
     {\usebibmacro{name:delim}{#4#1}%
      \usebibmacro{name:hook}{#4#1}%
-     \ifempty{#4}{}{%
+     \ifdefvoid{#4}{}{%
        \mkbibnameprefix{#4}%
        \ifpunctmark{'}{}{\addhighpenspace}}%
-     \mkbibnamelast{#1\isdot}%
-     \ifempty{#2}{}{\addcomma\addlowpenspace\mkbibnamefirst{#3}\isdot%
+     \mkbibnamefamily{#1\isdot}%
+     \ifdefvoid{#2}{}{\addcomma\addlowpenspace\mkbibnamegiven{#3}\isdot%
                     \ifthenelse{\value{uniquename}>1}
                       {\addspace\mkbibbrackets{#2}}
                       {}}%
-     \ifempty{#5}{}{\addcomma\addlowpenspace\mkbibnameaffix{#5}\isdot}}
+     \ifdefvoid{#5}{}{\addcomma\addlowpenspace\mkbibnamesuffix{#5}\isdot}}
     {\usebibmacro{name:delim}{#1}%
      \usebibmacro{name:hook}{#1}%
-     \mkbibnamelast{#1}\isdot
-     \ifempty{#2#4}{}{\addcomma}%
-     \ifempty{#2}{}{\addlowpenspace\mkbibnamefirst{#3}%
+     \mkbibnamefamily{#1}\isdot
+     \ifboolexpe{%
+       test {\ifdefvoid{#2}}
+       and
+       test {\ifdefvoid{#4}}}
+       {}
+       {\addcomma}%
+     \ifdefvoid{#2}{}{\addlowpenspace\mkbibnamegiven{#3}%
                     \ifthenelse{\value{uniquename}>1}
                       {\addspace\mkbibbrackets{#2}}
                       {}}%
-     \ifempty{#4}{}{%
+     \ifdefvoid{#4}{}{%
        \addhighpenspace\mkbibnameprefix{#4}%
        \ifpunctmark{'}{}{\addhighpenspace}}%
-     \ifempty{#5}{}{\addcomma\addlowpenspace\mkbibnameaffix{#5}\isdot}}}
+     \ifdefvoid{#5}{}{\addcomma\addlowpenspace\mkbibnamesuffix{#5}\isdot}}}
 
 \newbibmacro*{name:apa:given-family}[5]{%
   \ifuseprefix
     {\usebibmacro{name:delim}{#2}%
      \usebibmacro{name:hook}{#2}%
-     \ifempty{#2}{}{\mkbibnamefirst{#3}\isdot%
+     \ifdefvoid{#2}{}{\mkbibnamegiven{#3}\isdot%
                     \ifthenelse{\value{uniquename}>1}
                       {\addspace\mkbibbrackets{#2}}
                       {}\addspace}%
-     \ifempty{#4}{}{%
+     \ifdefvoid{#4}{}{%
        \mkbibnameprefix{#4\isdot}%
        \ifpunctmark{'}{}{\addhighpenspace}}%
-     \mkbibnamelast{#1\isdot}%
-     \ifempty{#5}{}{\addlowpenspace\mkbibnameaffix{#5}\isdot}}
+     \mkbibnamefamily{#1\isdot}%
+     \ifdefvoid{#5}{}{\addlowpenspace\mkbibnamesuffix{#5}\isdot}}
     {\usebibmacro{name:delim}{#1}%
      \usebibmacro{name:hook}{#1}%
-     \ifempty{#2}{}{\mkbibnamefirst{#3}\isdot%
+     \ifdefvoid{#2}{}{\mkbibnamegiven{#3}\isdot%
                     \ifthenelse{\value{uniquename}>1}
                       {\addspace\mkbibbrackets{#2}}
                       {}\addspace}%
-     \mkbibnamelast{#1}\isdot
-     \ifempty{#5}{}{\addcomma\addlowpenspace\mkbibnameaffix{#5}\isdot}}}
+     \mkbibnamefamily{#1}\isdot
+     \ifdefvoid{#5}{}{\addcomma\addlowpenspace\mkbibnamesuffix{#5}\isdot}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -843,16 +895,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % (APA 7.02 Example 21) Original year
 
-\DeclareFieldFormat{origyear}{\mkbibparens{\bibcpstring{origyear}~\thefield{origyear}}}
-
 % Only give ORIGYEAR in references if both:
 %   YEAR is also given
 %   YEAR and ORIGYEAR are different
 
 \newbibmacro*{origyear}{%
-  \ifthenelse{\NOT\iffieldundef{labelyear}\AND\NOT\iffieldsequal{labelyear}{origyear}}
-    {\printfield{origyear}}
-    {}}
+  \ifboolexpr{%
+    not test {\iffieldundef{origyear}}
+    not test {\iffieldundef{labelyear}}
+    and not test {\iffieldsequal{labelyear}{origyear}}}
+      {\printtext{\mkbibparens{\bibcpstring{origyear}~\printorigdate}}}
+      {}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1155,14 +1208,14 @@
           \setunit{\addspace}%
           \iffieldundef{urlyear}
             {}
-            {\printurldate%
-             \setunit*{\addcomma\addspace}}%
+            {\printtext{\printurldate}%
+             \setunit*{\urldatecomma}}%
           \printtext{\bibstring{from}}%
           \setunit*{\addspace}%
           \printfield{urldescription}%
           \setunit*{\addcolon\addspace}%
           \iffieldundef{url}{}{\printfield{url}\renewcommand*{\finentrypunct}{\relax}}%
-          \iffieldundef{abstractloc}{}{\printfield{abstractloc}\renewcommand*{\finentrypunct}{\relax}}
+          \iffieldundef{abstractloc}{}{\printfield{abstractloc}\renewcommand*{\finentrypunct}{\relax}}%
           \iffieldundef{abstracturl}{}{\printfield{abstracturl}\renewcommand*{\finentrypunct}{\relax}}}}
 
 %
@@ -1245,7 +1298,7 @@
     \usebibmacro{related}}}
 
 \newbibmacro*{related:reviewof}[1]{%
-  \setunit{}% Sanitize this in case no author
+  \setunit{}% Sanitise this in case no author
   \entrydata*{#1}{%
     \ifentrytype{article}
       {\printtext{\printfield[apacase]{title}}}
@@ -1724,7 +1777,7 @@
      \usebibmacro{related}}
     {}%
   \newunit\newblock
-  \ifbool{bbx:noreviewauthor}{\usebibmacro{labelyear+extrayear}}{}%
+  \ifbool{bbx:noreviewauthor}{\usebibmacro{labelyear+extradate}}{}%
   \newunit\newblock
   \usebibmacro{journal+issuetitle}%
   \newunit\newblock
@@ -1862,7 +1915,7 @@
   \usebibmacro{director}%
   \usebibmacro{producer}%
   \newunit\newblock
-  \usebibmacro{labelyear+extrayear}%
+  \usebibmacro{labelyear+extradate}%
   \setunit{\labelnamepunct}\newblock
   \usebibmacro{title}%
   \setunit{\addspace}\newblock
@@ -1891,7 +1944,7 @@
   \usebibmacro{director}%
   \usebibmacro{producer}%
   \newunit\newblock
-  \usebibmacro{labelyear+extrayear}%
+  \usebibmacro{labelyear+extradate}%
   \setunit{\labelnamepunct}\newblock
   \usebibmacro{title}%
   \setunit{\addspace}\newblock
@@ -1920,7 +1973,7 @@
   \usebibmacro{director}%
   \usebibmacro{producer}%
   \newunit\newblock
-  \usebibmacro{labelyear+extrayear}%
+  \usebibmacro{labelyear+extradate}%
   \setunit{\labelnamepunct}\newblock
   \usebibmacro{title}%
   \setunit{\addspace}\newblock
@@ -2166,7 +2219,6 @@
 
 \newbibmacro*{bbx:savehash}{%
   \savefield{fullhash}{\bbx@lasthash}}
-
 
 \newbool{bbx@inset}
 \DeclareBibliographyDriver{set}{%
