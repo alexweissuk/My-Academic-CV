@@ -1,4 +1,4 @@
-%% Copyright 2017 Philip Kime
+%% Copyright 2022 Philip Kime
 %%
 %% This work may be distributed and/or modified under the
 %% conditions of the LaTeX Project Public License, either version 1.3
@@ -9,13 +9,13 @@
 %% version 2005/12/01 or later.
 %%
 %% This work has the LPPL maintenance status `maintained'.
-%% 
+%%
 %% The Current Maintainer of this work is Philip Kime.
 
-\ProvidesFile{apa.bbx}[2017/11/05\space v7.5\space APA biblatex references style]
+\ProvidesFile{apa.bbx}[2023/03/20\space v9.17\space APA biblatex references style]
 \RequireBiber[3]
 \RequireBibliographyStyle{standard}
-\urlstyle{rm} % APA examples all have URLs in same font as text
+\urlstyle{same} % APA examples all have URLs in same font as text
 
 % Declare the language mapping suffix
 \DeclareLanguageMappingSuffix{-apa}
@@ -43,156 +43,229 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%  Used to join citations/references to
-%  extradate
+% Optional parens/brackets
+% Thanks to egreg from https://tex.stackexchange.com/questions/53068/how-to-check-if-a-macro-value-is-empty-or-will-not-create-text-with-plain-tex-co
+% for this test for expanded emptiness so that we can easily opt to not print parens around nothing
+% Without this, it is very messy - you have to test all potential fields for defness first and this
+% is messy because the fields in the additional info vary betwee entrytypes
+\def\foreverunspace{%
+  \ifnum\lastnodetype=11
+    \unskip\foreverunspace
+  \else
+    \ifnum\lastnodetype=12
+      \unkern\foreverunspace
+    \else
+      \ifnum\lastnodetype=13
+        \unpenalty\foreverunspace
+      \fi
+    \fi
+  \fi
+}
 
-\newcommand{\apashortdash}{-}
+% we need a way to save the state of the punctuation buffer
+% cf. \blx@initunit in biblatex.sty for what we need to copy
+
+% this uses the internal implementation of etoolbox toggles
+% fingers crossed no one messes with it
+\newrobustcmd*{\apablx@savetoggle}[1]{%
+  \csletcs{apablx@savedtoggle@#1}{etb@tgl@#1}}
+
+\newrobustcmd*{\apablx@restoretoggle}[1]{%
+  \csletcs{etb@tgl@#1}{apablx@savedtoggle@#1}}
+
+\newrobustcmd*{\apablx@savepunctstate}{%
+  \apablx@savetoggle{blx@block}%
+  \apablx@savetoggle{blx@unit}%
+  \apablx@savetoggle{blx@insert}%
+  \apablx@savetoggle{blx@lastins}%
+  \apablx@savetoggle{blx@keepunit}%
+  \let\apablx@savd@unitpunct\blx@unitpunct
+  \let\apablx@savd@puncthook\abx@puncthook}
+
+\newrobustcmd*{\apablx@restorepunctstate}{%
+  \global\apablx@restoretoggle{blx@block}%
+  \global\apablx@restoretoggle{blx@unit}%
+  \global\apablx@restoretoggle{blx@insert}%
+  \global\apablx@restoretoggle{blx@lastins}%
+  \global\apablx@restoretoggle{blx@keepunit}%
+  \global\let\blx@unitpunct\apablx@savd@unitpunct
+  \global\let\abx@puncthook\apablx@savd@puncthook}
+
+% printtext that checks if it would print anything
+\newrobustcmd{\printtexte}[2][]{%
+  \apablx@savepunctstate
+  \setbox0=\hbox{#2\foreverunspace}%
+  \apablx@restorepunctstate
+  \ifdim\wd0=0pt
+  \else
+    \ifblank{#1}
+      {\printtext{#2}}
+      {\printtext[#1]{#2}}%
+  \fi}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 9.8) - Allow variable max authors/editors limit
+%             Default to APA 19
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%  Allow variable max authors/editors limit
-
-\newcommand{\maxprtauth}{7}
+\newcommand{\maxprtauth}{20}
 \DeclareBibliographyOption{apamaxprtauth}{%
   \ifstrempty{#1}
     {}
     {\renewcommand{\maxprtauth}{#1}}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.22) Force roman numerals into arabic
-%            using etoolbox macros
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Multiple related entries, even though there are no
+% examples in APA 7th, should probably be this
+
+\renewcommand*{\relateddelim}{\addcomma\addspace}
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Force roman numerals into arabic using
+% etoolbox macros
 
 \newcommand{\apanum}[1]{\ifrmnum{#1}{\rmntonum{#1}}{#1}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Apa defines no particular hanging indent but this makes it look like the
-% examples in the style manual.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 9.43) Hanging indent of 0.5in
 
-\setlength{\bibhang}{2.5em}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 4.16 Example 29) Some DSM macros
-
-\gdef\DSMIII{\emph{DSM-III}}
-\gdef\DSMIIIR{\emph{DSM-III-R}}
-\gdef\DSMIV{\emph{DSM-IV}}
-\gdef\DSMIVTR{\emph{DSM-IV-TR}}
-\gdef\PsycSCAN{\emph{PsycSCAN}}
-\gdef\PsycARTICLES{\emph{PsycARTICLES}}
+\setlength{\bibhang}{0.5in}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Date formats. Suppress end range of less specific fields
+
 \newcommand*{\mkdaterangeapalong}[1]{%
-  \blx@metadateinfo{#1}%
-  \iffieldundef{#1year}{}
-    {\datecircaprint
-     \ifstrequal{#1}{url}% URL dates are unlikely to be BCE ...
-       {\printtext{%
-           \mkbibdateapalongmdy{#1year}{#1month}{#1day}%
-           \iffieldundef{#1endyear}%
-             {}%
-             {\iffieldequalstr{#1endyear}{}% open-ended range?
-               {\mbox{\bibdatedash}}
-               {\bibdatedash%
-                \iffieldsequal{#1year}{#1endyear}%
-                  {\iffieldsequal{#1month}{#1endmonth}%
-                    {\iffieldsequal{#1day}{#1endday}%
-                      {}%
-                      {\mkbibdateapalongmdy{}{}{#1endday}}}%
-                    {\mkbibdateapalongmdy{}{#1endmonth}{#1endday}}}%
-                  {\mkbibdateapalongmdy{#1endyear}{#1endmonth}{#1endday}}}}%
-           \dateuncertainprint}}
-       {\printtext{%
-           \mkbibdateapalong{#1year}{#1month}{#1day}%
-           \dateeraprint{#1year}%
-           \iffieldundef{#1endyear}%
-             {}%
-             {\iffieldequalstr{#1endyear}{}% open-ended range?
-               {\mbox{\bibdatedash}}
-               {\bibdatedash%
-                \iffieldsequal{#1year}{#1endyear}%
-                  {\iffieldsequal{#1month}{#1endmonth}%
-                    {\iffieldsequal{#1day}{#1endday}%
-                      {}%
-                      {\mkbibdateapalong{}{}{#1endday}}}%
-                    {\mkbibdateapalong{}{#1endmonth}{#1endday}}}%
-                  {\mkbibdateapalong{#1endyear}{#1endmonth}{#1endday}%
-                 \dateeraprint{#1endyear}}}%
-             \enddateuncertainprint}}}}}
+  \begingroup
+    \blx@metadateinfo{#1}%
+    \iffieldundef{#1year}{}
+      {\datecircaprint
+        \ifboolexpr{ test {\ifstrequal{#1}{url}}
+                     or test {\ifentrytype{legal}}
+                     or ( test {\ifentrytype{legadminmaterial}} and
+                          test {\ifkeyword{proposed}} ) }
+         {\printtext[#1date]{%
+             \mkbibdateapalongmdy{#1year}{#1yeardivision}{#1month}{#1day}%
+             \iffieldundef{#1endyear}%
+               {}%
+               {\iffieldequalstr{#1endyear}{}% open-ended range?
+                 {\bibdatedash\bibstring{present}}
+                 {\iffieldundef{#1endyeardivision}
+                   {\bibdatedash%
+                    \iffieldsequal{#1year}{#1endyear}%
+                      {\iffieldsequal{#1month}{#1endmonth}%
+                        {\iffieldsequal{#1day}{#1endday}%
+                          {}%
+                          {\mkbibdateapalongmdy{}{}{}{#1endday}}}%
+                        {\mkbibdateapalongmdy{}{}{#1endmonth}{#1endday}}}%
+                      {\mkbibdateapalongmdy{#1endyear}{#1endyeardivision}{#1endmonth}{#1endday}}}}
+                   {\addslash\mkbibdateapalongmdy{}{#1endyeardivision}{}{}}}%
+             \dateuncertainprint}}
+         {\printtext{%
+             \mkbibdateapalong{#1year}{#1yeardivision}{#1month}{#1day}%
+             \dateeraprint{#1year}%
+             \dateuncertainprint
+             \iffieldundef{#1endyear}%
+               {}%
+               {\iffieldequalstr{#1endyear}{}% open-ended range?
+                 {\bibdatedash\bibstring{present}}
+                 {\iffieldundef{#1endyeardivision}
+                   {\bibdatedash%
+                    \iffieldsequal{#1year}{#1endyear}%
+                      {\iffieldsequal{#1month}{#1endmonth}%
+                        {\iffieldsequal{#1day}{#1endday}%
+                          {}%
+                          {\mkbibdateapalong{}{}{}{#1endday}}}%
+                        {\mkbibdateapalong{}{}{#1endmonth}{#1endday}}}%
+                      {\mkbibdateapalong{#1endyear}{#1endyeardivision}{#1endmonth}{#1endday}%
+                        \dateeraprint{#1endyear}}}
+                   {\addslash\mkbibdateapalong{}{#1endyeardivision}{}{}}}%
+               \enddateuncertainprint}}}}%
+  \endgroup}
 
 % Only for DATE as only \printdateextra is used
 \newcommand*{\mkdaterangeapalongextra}[1]{%
-  \blx@metadateinfo{#1}%
-  \iffieldundef{#1year}{}
-    {\printtext{%
-      \datecircaprint
-      \mkbibdateapalongextra{#1year}{#1month}{#1day}%
-      \dateeraprint{#1year}%
-      \dateuncertainprint
-      \iffieldundef{#1endyear}%
-        {}%
-        {\iffieldequalstr{#1endyear}{}% open-ended range?
-          {\mbox{\bibdatedash}}
-          {\bibdatedash%
-           \iffieldsequal{#1year}{#1endyear}%
-             {\iffieldsequal{#1month}{#1endmonth}%
-                {\iffieldsequal{#1day}{#1endday}%
-                  {}%
-                  {\mkbibdateapalongextra{}{}{#1endday}}}
-                {\mkbibdateapalongextra{}{#1endmonth}{#1endday}}}
-             {\mkbibdateapalongextra{#1endyear}{#1endmonth}{#1endday}%
-              \dateeraprint{#1endyear}}}%
-         \enddateuncertainprint}}}}
+  \begingroup
+    \blx@metadateinfo{#1}%
+    \iffieldundef{#1year}{}
+      {\printtext[#1date]{%
+        \datecircaprint
+        \mkbibdateapalongextra{#1year}{#1yeardivision}{#1month}{#1day}%
+        \dateeraprint{#1year}%
+        \dateuncertainprint
+        \iffieldundef{#1endyear}%
+          {}%
+          {\iffieldequalstr{#1endyear}{}% open-ended range?
+            {\bibdatedash\bibstring{present}}
+            {\iffieldundef{#1endyeardivision}
+              {\bibdatedash%
+               \iffieldsequal{#1year}{#1endyear}%
+                 {\iffieldsequal{#1month}{#1endmonth}%
+                    {\iffieldsequal{#1day}{#1endday}%
+                      {}%
+                      {\mkbibdateapalongextra{}{}{}{#1endday}}}
+                    {\mkbibdateapalongextra{}{}{#1endmonth}{#1endday}}}
+                 {\mkbibdateapalongextra{#1endyear}{#1endyeardivision}{#1endmonth}{#1endday}%
+                   \dateeraprint{#1endyear}}}
+              {\addslash\mkbibdateapalongmdy{}{#1endyeardivision}{}{}}}%
+           \enddateuncertainprint}}}%
+  \endgroup}
 
 \AtEndPreamble{%
   \renewcommand*{\datecircaprint}{%
     \ifdatecirca{\biblcstring{circa}\printdelim{datecircadelim}}{}}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.09 Example 62) ERIC
-% eprint references
-
-\DeclareFieldFormat{eprint:eric}{%
-  \printtext{\bibcpstring{retrieved}}%
-  \setunit{\addspace}%
-  \printtext{\bibstring{from}}\addspace%
-  ERIC\addspace database\adddot\addspace%
-  \mkbibparens{#1}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.12) Five author max before "et al" and a one author truncation policy
-%            However, only after the first cite, see the labelname format
-%            in .cbx. It's also overridden per-entry by uniquelist
-% (APA 6.x)  Citation tracking is global
-% (APA 6.14) Use initials to disambiguate shared surnames
-% (APA 6.16) Use year postfix to disambiguate multiple items in same year
-% (APA 6.10) Never reference anything not cited
-% (APA 6.25) Author initials only
-% (APA 6.25) Sorting is nyt but we need to account for PUBSTATE which comes
-%            after all normal cites for the same author
+% (APA 8.12) sort citations
+% (APA 8.17,8.18) More than two authors is truncated to one but overriden for list ambiguity to
+%                 point of no ambiguity but only when same year.
+% (APA 8.20) Use initials to disambiguate shared surnames
+% (APA 8.19) Use year postfix to disambiguate multiple items in same year
+% (APA 9.44, 9.46, 9.47) Sorting is nyt but we need to account for PUBSTATE which comes
+%                        after all normal cites for the same author
+% (APA 9.42) Secular Before Common Era dates, approximate dates
+% (APA Figure 9.2) Sorting ignores punctuation in names
+% (APA 9.47) Ignore "The", "An" and "A" when sorting titles
+
+% Used for sorting citations with biblatex option "sortcites" as this needs to use
+% the silly APA standards for name list visibility (8.17, 8.18) in cites which differs from the reference list.
+\DeclareSortingNamekeyTemplate[apasortcite]{
+  \visibility{cite}
+  \keypart{
+    \namepart[use=true]{prefix}
+    \namepart{family}
+  }
+  \keypart{
+    \namepart{given}
+  }
+  \keypart{
+    \namepart{suffix}
+  }
+  \keypart{
+    \namepart[use=false]{prefix}
+  }
+}
+
+\DeclareNosort{
+  \nosort{setnames}{\regexp{\p{General_Category=Punctuation}}}
+  \nosort{settitles}{\regexp{\A(?:The|An|A)\s+}}
+}
 
 \DeclareSortingTemplate{apa}{
   \sort{
@@ -205,11 +278,6 @@
     \field{sortname}
     \field{author}
     \field{editor}
-    \field{translator}
-    \field{writer}
-    \field{director}
-    \field{producer}
-    \field{execproducer}
     \field{sorttitle}
     \field{title}
   }
@@ -222,6 +290,14 @@
     \literal{-2000000000}% APA has "nodates" coming first
   }
   \sort{
+    \field{month}
+    \literal{-2000000000}% APA has "nodates" coming first
+  }
+  \sort{
+    \field{day}
+    \literal{-2000000000}% APA has "nodates" coming first
+  }
+  \sort{
     \field{sorttitle}
     \field{title}
   }
@@ -231,54 +307,139 @@
   }
 }
 
+% Don't sort on EDITOR for INBOOK (IN* since IN* is mapped to INBOOK) as TITLE is used in place of author
+% if there is no AUTHOR
+\DeclareSortExclusion{inbook}{editor}
+
+\DeclareLabelname{%
+  \field{shortauthor}
+  \field{author}
+  \field{shorteditor}
+  \field{editor}
+}
+
+% Don't use EDITOR as labelname in INBOOK (IN* since IN* is mapped to INBOOK) as citations should be
+% via TITLE if there is no AUTHOR
+\DeclareLabelname[inbook]{%
+  \field{shortauthor}
+  \field{author}
+}
+
 % Don't fall back on other year fields if there is no year, use
 % "nodate" string
 \DeclareLabeldate{%
   \field{pubstate}
   \field{date}
-  \field{year}%legacy - no EDTF support
+  \field{eventdate}
+  \field{year}%legacy - no ISO8601 support
   \literal{nodate}
 }
 
-% Due to APA strange requirements like truncation after first cite and
-% ellipsis from 7th to n-1 in bib, there might be some really strange
-% edge cases which can't be handled as this needs treating in the style
-% after biber has finished. Very unlikely though.
+% CONSTITUTION entrytypes have no dates at all so no fall back to nodate literal either
+\DeclareLabeldate[constitution]{\field{date}}
+
 \ExecuteBibliographyOptions{%
                             abbreviate=true,%
                             autocite=inline,%
-                            backref=true,%
+                            backref=false,%
                             citetracker=true,%
                             date=apalong,%
                             dateabbrev=false,%
                             datecirca=true,%
-                            dateera=christian,%
-                            labeldate=apalong,%
+                            dateera=secular,%
                             dateuncertain=true,%
                             eventdate=comp,%
+                            labeldate=apalong,%
                             labeldateparts=true,%
-                            maxbibnames=7,%
+                            maxbibnames=20,%
                             maxcitenames=2,%
-                            minbibnames=6,%
+                            minbibnames=19,%
                             mincitenames=1,%
                             mincrossrefs=999,%
+                            maxitems=999,%
                             origdate=apalong,%
                             pagetracker=true,%
+                            pluralothers=true,%
+                            sortcites=true,%
                             sorting=apa,%
                             uniquelist=minyear,%
-                            uniquename=full,%
+                            uniquename=init,%
                             uniqueprimaryauthor=true,%
                             urldate=apalong,%
                             useprefix=true,%
-                            usetranslator=true}
+                            usetranslator=true,%
+                            usenarrator=true}
 
+
+% It's not completely obvious but it's implied that names identical apart from a suffix
+% are to be treated as different name lists for extradate calculation so we add suffix
+% to the default definition
+\DeclareUniquenameTemplate{
+  \namepart[use=true, base=true]{prefix}
+  \namepart[base=true]{family}
+  \namepart{given}
+  \namepart{suffix}
+}
+
+% Force, in every refsection, the generation of refcontext data with a
+% sorting name key template which works for citation sorting with sortcites. This
+% would not be generated in the .bcf otherwise and therefore no sorted list
+% with this sorting name key tenplate would generated in teh .bbl by biber because no
+% \printbibliography would be executed in this context since it is only
+% used for sorting of citations truncated to one name as per 8.17/8.18.
 %
+% Two things needs to happen in general:
+% 1. Generate the refcontext sorted data list in the .bbl (biber) which requires a datalist
+%    section in the .bcf. This latter is done by \printbibliography/\printbiblist or \GenRefcontextData
+%    when no \printbibliography/\printbiblist is done in the refcontext 
+% 2. Switch to the relevant refcontext at the right time in order to pull the date from the
+%    correct data list (\newrefcontext/\begin{refcontext})
+\AtBeginRefsection{\GenRefcontextData{sortingnamekeytemplatename=apasortcite}}
+% Switch to the reference context using citation visibility setting for sorting of citations
+\AtEveryCite{\localrefcontext[sortingnamekeytemplatename=apasortcite]}
+
+% 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
 % Enforce ignoring of PUBSTATE if there is a YEAR or DATE field
+% (APA 10.2:32) Remove PUBLISHER if it is the same as AUTHOR
+% Force @COLLECTION, @REFERENCE->@BOOK and @INCOLLECTION,@INREFERENCE->@INBOOK
+
 \DeclareStyleSourcemap{
   \maps[datatype=bibtex]{
+    \map{
+      \step[typesource=reference, typetarget=book]
+    }
+    \map{
+      \step[typesource=inreference, typetarget=inbook]
+    }
+    \map{
+      \step[typesource=collection, typetarget=book]
+    }
+    \map{
+      \step[typesource=incollection, typetarget=inbook]
+    }
+    \map{
+      \step[typesource=hardware, typetarget=software]
+    }
+    \map{
+      \step[fieldsource=groupauthor, fieldtarget=author]
+    }
+    \map{
+      \pertype{proceedings}
+      \step[fieldsource=booktitle, fieldtarget=title]
+      \step[typesource=proceedings, typetarget=book]
+    }
+    \map{
+      \pertype{inproceedings}
+      \step[notfield=editor, final]
+      \step[notfield=crossref, final]% A bit suspect but assuming that any crossref contains EDITOR
+      \step[fieldsource=booktitle, fieldtarget=journaltitle]
+      \step[typesource=inproceedings, typetarget=article]
+    }
+    \map{
+      \step[typesource=inproceedings, typetarget=inbook]
+    }
     \map{
       \step[fieldsource=year, final]
       \step[fieldset=pubstate, null]
@@ -286,86 +447,19 @@
     \map{
       \step[fieldsource=date, final]
       \step[fieldset=pubstate, null]
+    }
+    \map{
+      \step[fieldsource=author, match=\regexp{([^{}]+)}, final]
+      \step[fieldsource=publisher, match=\regexp{$1}, final]%$
+      \step[fieldset=publisher, null]
    }
-  }
+ }
 }
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% It is not APA standard to have backrefs in the bib
-% Some users might like it though.
-
-\newbool{apa:backref}
-\DeclareBibliographyOption{apabackref}{%
-  \ifstrequal{#1}{true}
-    {\global\booltrue{apa:backref}}
-    {\global\boolfalse{apa:backref}}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.29) Additional material sometimes goes in parens
-%            after title. This bool tracks the parens.
-
-\newbool{bbx:parens}
-\AtEveryBibitem{\global\boolfalse{bbx:parens}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.06:47) Reviews are awkward - if no author, date
-%               position changes so we need a flag to
-%               track this
-
-\newbool{bbx:noreviewauthor}
-\AtEveryBibitem{\global\boolfalse{bbx:noreviewauthor}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Sometimes "Vol" is inside the additional
-%            material parens, sometimes not. This bool
-%            tracks if it has been inserted yet.     
-%            Can't use \clearfield{volume} as some
-%            later number format tests need to know
-%            whether volume was defined.
-
-\newbool{bbx:volseen}
-\AtEveryBibitem{\global\boolfalse{bbx:volseen}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) This bool tracks if the title was put
-%            in the author position.
-%            Can't use \clearfield{title} as some
-%            later punctuation tests need to know
-%            whether title was defined.
-
-\newbool{bbx:titleinauthpos}
-\AtEveryBibitem{\global\boolfalse{bbx:titleinauthpos}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) Need a flag to say when the editor
-%            is in author position because this
-%            can effect where the year goes.
-
-\newbool{bbx:editorinauthpos}
-\AtEveryBibitem{\global\boolfalse{bbx:editorinauthpos}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) Flag to say whether the "in" has
-%            been placed already in IN*
-%            Reset every bibitem.
+% Flag to say whether the "in" has
+% been placed already in IN*
+% Reset every bibitem.
 
 \newbool{bbx:in}
 \AtEveryBibitem{\global\boolfalse{bbx:in}}
@@ -376,23 +470,109 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Set up some standard APA formats
 
-\DeclareFieldFormat{volume}{\apanum{#1}}
-\DeclareFieldFormat{series}{#1}
-\DeclareFieldFormat{chapter}{\bibcpstring{chapter}~\apanum{#1}}
+% General format of titles. Ugly Chicago-style lowercasing of English titles
+\DeclareFieldFormat{apacase}{\bbx@colon@search\MakeSentenceCase*{#1}}
+
+% HOWPUBLISHED
+\DeclareFieldFormat[unpublished]{howpublished}{\mkbibbrackets{%
+  \ifbibstring{#1}{\bibcpstring{#1}}{#1}}}
+
+% TITLE
+\DeclareFieldFormat*{title}{\mkbibemph{#1}\isdot}
+\DeclareFieldFormat[article,inbook,incollection,periodical,misc,legislation,legadminmaterial,jurisdiction,inproceedings,legal]{title}{#1\isdot}
+\DeclareFieldFormat[audio,video]{title}{\iffieldundef{maintitle}{\mkbibemph{#1}\isdot}{#1}}
+\DeclareFieldFormat[presentation]{title}{\iffieldundef{maintitle}{\mkbibemph{#1}}{#1}\isdot}
+
+% SUBTITLE
+\DeclareFieldFormat[legmaterial]{subtitle}{\mkbibemph{#1}}
+
+% TITLEADDON
+\DeclareFieldFormat{titleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
+\DeclareFieldFormat[legislation]{titleaddon}{#1}
+
+% MAINTITLEADDON
+\DeclareFieldFormat{maintitleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
+
+% NOTE
+\DeclareFieldFormat[legmaterial,legadminmaterial,report]{note}{\mkbibparens{#1}}
+
+% BOOKTITLEADDON
+\DeclareFieldFormat{booktitleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
+
+% ISSUETITLE
+\DeclareFieldFormat{issuetitle}{#1\isdot}
+\DeclareFieldFormat[periodical]{issuetitle}{\mkbibbrackets{#1}}
+
+% ORIGTITLE
+\DeclareFieldFormat{origtitle}{\mkbibemph{\bbx@colon@search\MakeSentenceCase*{#1}}\isdot}
+\DeclareFieldFormat[article,inbook,incollection,inproceedings,proceedings,presentation]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
+
+% VOLUME
+\DeclareFieldFormat{volume}{\iffieldundef{maintitle}
+                              {\bibcpstring{volume}~\apanum{#1}}
+                              {\mkbibemph{\bibcpstring{volume}~\apanum{#1}}}}
+\DeclareFieldFormat[article]{volume}{\mkbibemph{\apanum{#1}}}
+\DeclareFieldFormat[inproceedings,periodical]{volume}{\mkbibemph{\apanum{#1}}}
+
+% VOLUMES
 \DeclareFieldFormat{volumes}{\bibcpstring{volumes}~#1}
-\DeclareFieldFormat{addendum}{\mkbibparens{#1}}
-\DeclareFieldFormat{part}{#1}
+
+% CHAPTER
+\DeclareFieldFormat{chapter}{\bibcpstring{chapter}~\apanum{#1}}
+
+% NUMBER
+\DeclareFieldFormat{number}{\iffieldundef{volume}
+                             {\ifinteger{\thefield{number}}
+                               {\addspace\mkbibemph{\bibcpstring{number}~\apanum{#1}}\adddot}
+                               {\apanum{#1}}}
+                             {\mkbibemph{\apanum{#1}}}}
+\DeclareFieldFormat[report]{number}{\apanum{#1}}
+\DeclareFieldFormat[article,periodical,inproceedings]{number}{\mkbibparens{\apanum{#1}}}
+\DeclareFieldFormat[reprint]{number}{\mkbibbrackets{\apanum{#1}}}
+\DeclareFieldFormat{legmaterialnum}{%
+  \ifthenelse{%
+    \iffieldequalstr{type}{report}\OR%
+    \iffieldequalstr{type}{execorder}}{\bibcpstring{number}~\apanum{#1}}{\apanum{#1}}}
+\DeclareFieldFormat[thesis]{number}{%
+  \bibcpstring{publication}\setunit{\addspace}\bibcpstring{number}~\apanum{#1}}
+
+% PAGES
+\DeclareFieldFormat{pageswithprefix}{\mkpageprefix[bookpagination]{#1}}
+\DeclareFieldFormat[inbook,incollection]{pages}{\mkpageprefix[bookpagination]{#1}}
+\DeclareFieldFormat[periodical]{pages}{#1}
+
+% PART
+\DeclareFieldFormat*{part}{#1}
+
+% ORGANIZATION
+\DeclareListFormat[misc]{organization}{\mkbibemph{#1}}
+
+% LOCATION
+\DeclareListFormat[periodical]{location}{\mkbibemph{#1}}
+\DeclareListFormat{publisher}{%
+  \usebibmacro{publisher:delim}{#1}%
+  #1\isdot}
+\DeclareListFormat{location}{%
+  \usebibmacro{location:delim}{#1}%
+  #1\isdot}
+
+% NAMEADDON
+\DeclareFieldFormat[misc]{nameaddon}{\mkbibparens{#1}}
+
+% VERSION
+\DeclareFieldFormat[dataset,software]{version}{\bibcpstring{version}~#1}
+\DeclareFieldFormat[online]{version}{\mkbibparens{#1}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.25) Works by the same author have the full author
+% (APA 9.47) Works by the same author have the full author
 %            name, not an eliding dash. Author is always
 %            last name first.
-% (APA 6.27) Ellipsis in 7th position and then nothing until last
-% (APA 7.10 Example 67) Unknown names and dates
-%
+% (APA 10.1:4) Ellipsis from 20th position and then nothing until last
+% (APA 9.x) Unknown names and dates
+% (APA 9.8) Two group authors drop the comma in between
 
 % \printnames does different things depending on whether the format you are
 % calling is the default for the name field or is a custom format:
@@ -409,76 +589,136 @@
 
 \DeclareNameFormat{apaauthor}{%
   \ifthenelse{\value{listcount}=\maxprtauth\AND\value{listcount}<\value{listtotal}}
-    {\addcomma\addspace\ldots\addspace}
+    {\addcomma\space\ldots\space}
     {\ifthenelse{\value{listcount}>\maxprtauth\AND\value{listcount}<\value{listtotal}}
       {}
-      {\iffieldannotation{uncertain}
-        {\mkbibbrackets{\usebibmacro{name:apa:family-given}%
-                         {\namepartfamily}%
-                         {\namepartgiven}%
-                         {\namepartgiveni}%
-                         {\namepartprefix}%
-                         {\namepartsuffix}?}}
-        {\usebibmacro{name:apa:family-given}%
-          {\namepartfamily}%
-          {\namepartgiven}%
-          {\namepartgiveni}%
-          {\namepartprefix}%
-          {\namepartsuffix}}}}%
-    \ifthenelse{\value{listcount}=\value{listtotal}}%
-      {\ifmorenames{\printdelim{andothersdelim}\bibstring{andothers}}{}}{}}
+      {\usebibmacro{name:apa:family-given}%
+         {\namepartfamily}%
+         {\namepartgiven}%
+         {\namepartgiveni}%
+         {\namepartprefix}%
+         {\namepartsuffix}}}%
+  \ifthenelse{\value{listcount}=\value{listtotal}}%
+    {\ifmorenames
+       {\printdelim{andothersdelim}%
+        \biblcstring{andothers}}
+       {}%
+     \let\bibstring\bibcplstring
+     \usebibmacro{roles}{\addspace}{\mkbibparens}}
+    {}}
+
+\DeclareNameFormat{apanames}{%
+  \ifthenelse{\value{listcount}=\maxprtauth\AND\value{listcount}<\value{listtotal}}
+    {\addcomma\space\ldots\space}
+    {\ifthenelse{\value{listcount}>\maxprtauth\AND\value{listcount}<\value{listtotal}}
+      {}
+      {\usebibmacro{name:apa:given-family}%
+         {\namepartfamily}%
+         {\namepartgiven}%
+         {\namepartgiveni}%
+         {\namepartprefix}%
+         {\namepartsuffix}}}%
+  \ifthenelse{\value{listcount}=\value{listtotal}}%
+    {\ifmorenames
+       {\printdelim{andothersdelim}%
+        \biblcstring{andothers}}
+       {}%
+     \let\bibstring\bibcplstring
+     \usebibmacro{roles}{\addspace}{\@firstofone}}
+    {}}
+
+\DeclareDelimFormat[bib,biblist]{nameyeardelim}{\newunitpunct}
+\DeclareDelimAlias[bib,biblist]{nonameyeardelim}{nameyeardelim}
+
+\renewbibmacro*{author/editor}{%
+  \ifnameundef{author}
+    {\ifthenelse{\ifnameundef{editor}\OR\ifentrytype{inbook}}
+      {\usebibmacro{title}%
+       % need to clear all title fields so we don't get them again later
+       \clearfield{title}%
+       \clearfield{subtitle}%
+       \clearfield{titleaddon}%
+       \setunit{\printdelim{nonameyeardelim}}\newblock}
+      {\usebibmacro{editorinauthpos}%
+       \setunit{\printdelim{nameyeardelim}}\newblock}}
+    {\usebibmacro{author}%
+     \setunit{\printdelim{nameyeardelim}}\newblock}%
+  %
+  \usebibmacro{labelyear+extradate}}
+
+\newbibmacro*{author/editor:related}{%
+  \ifnameundef{author}
+    {\ifthenelse{\ifnameundef{editor}\OR\ifentrytype{inbook}}
+      {\usebibmacro{title}%
+        % need to clear all title fields so we don't get them again later
+        \clearfield{title}%
+       \clearfield{subtitle}%
+       \clearfield{titleaddon}}
+      {\usebibmacro{editorinauthpos:related}}}
+    {\usebibmacro{author:related}}}
+
+\newbibmacro*{editorinauthpos}{%
+  \printnames[apaauthor][-\value{listtotal}]{editor}%
+  \setunit{\addspace}%
+  \ifnameundef{editor}
+    {}
+    {\printtext[parens]{\usebibmacro{apaeditorstrg}{editor}}%
+     % need to clear editor so we don't get an "In" clause later
+     \clearname{editor}}}
+
+\newbibmacro*{editorinauthpos:related}{%
+  \printnames[apanames][-\value{listtotal}]{editor}%
+  \setunit{\addspace}%
+  \ifnameundef{editor}
+    {}
+    {\printtext[parens]{\usebibmacro{apaeditorstrg}{editor}}%
+     % need to clear editor so we don't get an "In" clause later
+     \clearname{editor}}}
 
 \renewbibmacro*{author}{%
-  \ifnameundef{author}
-    {\usebibmacro{labeltitle}}
-    {\printnames[apaauthor][-\value{listtotal}]{author}%
-     \setunit*{\addspace}%
-     \printfield{nameaddon}%
-     \ifnameundef{with}
-       {}
-       {\setunit{}\addspace\mkbibparens{\printtext{\bibstring{with}\addspace}%
-        \printnames[apaauthor][-\value{listtotal}]{with}}
-        \setunit*{\addspace}}}%
-  \newunit\newblock%
-  \usebibmacro{labelyear+extradate}}
+  \printnames[apaauthor][-\value{listtotal}]{author}%
+  \setunit*{\addspace}%
+  \printfield{nameaddon}%
+  \ifnameundef{with}
+    {}
+    {\setunit{\addspace}%
+     \printtext[parens]{%
+       \bibstring{with}%
+       \setunit{\addspace}%
+       \printnames[apaauthor][-\value{listtotal}]{with}}%
+     \setunit{\addspace}}}
+
+\newbibmacro*{author:related}{%
+  \printnames[apanames][-\value{listtotal}]{author}%
+  \setunit*{\addspace}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) References section delimiters are ampersands, not " and "
-%            Needs to be in this hook otherwise it sets this for all
-%            citations too.
-% (APA 6.27) Use blank for long lists
-% (APA 4.03) Serial comma for lists of three or more
+% (APA 9.8) Author delimiters are ampersands before final author
+%           Long author lists
+%           Serial comma for lists of three or more
+%           Ampersand only (no comma) between two group authors
 
-\DeclareDelimFormat[bib]{finalnamedelim}{%
+\DeclareDelimFormat[bib,biblist]{finalnamedelim}{%
   \ifthenelse{\value{listcount}>\maxprtauth}
     {}
     {\ifthenelse{\value{liststop}>2}
        {\finalandcomma\addspace\&\space}
        {\addspace\&\space}}}
 
+
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.28) Use "nodate" bibstring for references with no year
+% (APA 9.47) Use "nodate" bibstring for references with no year
 %            Months and days go into parenthesis with year, if set
-% (APA 6.29) Issue goes where month normally goes if it
-%            is set.
-% (APA 7.10) circa or uncertain dates in brackets
+% (APA 8.13, 10.2) circa or uncertain dates in brackets
 
 % Make sure endmonth gets an expansion too
 \DeclareFieldFormat{endmonth}{\mkbibmonth{#1}}
-
-\newbibmacro*{monthorissue}{%
-  \iffieldundef{issue}
-    {\iffieldundef{month}
-      {}
-      {\addcomma\space\printfield{month}%
-      \iffieldundef{endmonth}{}{/\printfield{endmonth}}}}
-    {\addcomma\space\printfield{issue}}}
 
 \newbibmacro*{labelyear+extradate}{%
   \iffieldundef{labelyear}
@@ -489,77 +729,48 @@
 
 \DeclareFieldFormat{apadate}{%
   \ifboolexpr{ test {\ifdatecirca} or test {\ifdateuncertain} }
-    {\printtext{\mkbibbrackets{#1}}}
-    {\printtext{\mkbibparens{#1}}}}
+    {\mkbibbrackets{#1}}
+    {\mkbibparens{#1}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.29) General format of titles.
-%            Ugly Chicago-style lowercasing of English titles
-
-\DeclareFieldFormat{apacase}{\bbx@colon@search\MakeSentenceCase*{#1}}
-
-\DeclareFieldFormat{issuetitle}{#1\isdot}
-\DeclareFieldFormat{title}{\iffieldequalstr{titleisdescription}{true}{\mkbibbrackets{#1}}{\mkbibemph{#1}\isdot}}
-\DeclareFieldFormat{origtitle}{\mkbibemph{\bbx@colon@search\MakeSentenceCase*{#1}}\isdot}
-\DeclareFieldFormat[article]{title}{#1\isdot}
-\DeclareFieldFormat[article]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
-\DeclareFieldFormat[inbook]{title}{#1\isdot}
-\DeclareFieldFormat[inbook]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
-\DeclareFieldFormat[incollection]{title}{#1\isdot}
-\DeclareFieldFormat[incollection]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
-\DeclareFieldFormat[inproceedings]{title}{#1\isdot}
-\DeclareFieldFormat[inproceedings]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
-\DeclareFieldFormat[proceedings]{title}{#1\isdot}
-\DeclareFieldFormat[proceedings]{origtitle}{\bbx@colon@search\MakeSentenceCase*{#1}\isdot}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.01 Example 10) Newspapers have prefix for pages.
+% (APA 10.5) Conference event information
 
-\DeclareFieldFormat[newsarticle]{pages}{%
-    \DeclareNumChars{.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ}%
-    \mkpageprefix{#1}%
-    \DeclareNumChars{.}}
-
-\DeclareFieldFormat[newsarticle]{newspaper}{\mkbibemph{#1}}
-\DeclareFieldFormat[newsarticle]{entrysubtype}{\mkbibbrackets{#1}}
-\DeclareFieldFormat[newsarticle]{title}{#1}
-\DeclareFieldFormat[article]{pages}{#1}
-
-\newbibmacro*{newspaper}{%
-  \printfield{newspaper}
-  \setunit{\addcomma\space}}
+\newbibmacro*{eventinfo}{%
+  \printfield{eventtitle}%
+  \setunit{\addcomma\addspace}%
+  \printfield{venue}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.29)      Additional {main}title information in brackets (using)
-%                 {MAIN}TITLEADDON field. Colon after maintitle.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 9.25) No prefix for pages
 
-\DeclareFieldFormat{titleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
-\DeclareFieldFormat{maintitleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
-\DeclareFieldFormat{booktitleaddon}{\mkbibbrackets{\bbx@colon@search\MakeSentenceCase*{#1}}}
+\DeclareFieldFormat{pages}{#1}
 
-\newbibmacro*{bookaddinfo}{%
-  \ifthenelse{\iffieldundef{edition}\AND\iffieldundef{volumes}}
-    {}
-    {\printtext{\bibopenparen}%
-     \printfield{edition}%
-     \setunit*{\addcomma\addspace}%
-     \printfield{volumes}%
-     \setunit{}%
-     \printtext{\bibcloseparen}}%
-}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 9.52) References in a meta-analysis
+%            Dates ignore month/day in nonacademic
+%            articles
+
+\renewbibmacro*{begentry}{%
+  \ifkeyword{meta}{\textsuperscript{*}}{}}
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Title and additional post title information
 
 \renewbibmacro*{title}{%
   \ifthenelse{\iffieldundef{title}\AND\iffieldundef{subtitle}}
-    {}
+    {\printfield{titleaddon}}
     {\iffieldundef{origtitle}
       {\printtext[title]{%
         \printfield[apacase]{title}%
@@ -572,57 +783,98 @@
         \setunit{\subtitlepunct}%
         \printfield[apacase]{subtitle}}}%
      \setunit{\addspace}%
+     \ifthenelse{\ifentrytype{inbook}\OR\ifentrytype{thesis}}{}{\usebibmacro{addinfo1}}% additional info in parens
+     \ifentrytype{thesis}{\usebibmacro{addinfo3}}{}%
+     \setunit{\addspace}%
      \printfield{titleaddon}%
-     \iffieldequalstr{entrytype}{book}%
-       {\setunit{\addspace}\usebibmacro{bookaddinfo}}%
-       {}%
-     \ifthenelse{%
-       \ifnameundef{author}\AND%
-       \(\ifnameundef{editor}\AND\NOT\boolean{bbx:editorinauthpos}\)\AND%
-       \ifnameundef{producer}\AND%
-       \ifnameundef{director}\AND%
-       \ifnameundef{writer}}
-        {\newunit\newblock
-         \usebibmacro{labelyear+extradate}}
-        {}}}
+     \setunit{\addspace}%
+     \usebibmacro{addinfo2}}}%
 
-\renewbibmacro*{maintitle}{%
-  \ifthenelse{\iffieldundef{maintitle}\AND\iffieldundef{mainsubtitle}}
-    {}
-    {\printtext[maintitle]{%
-       \printfield[apacase]{maintitle}%
-       \setunit{\subtitlepunct}%
-       \printfield[apacase]{mainsubtitle}}%
-    \setunit{\addspace}}
-  \printfield{maintitleaddon}%
-  \addcolon}
+\newbibmacro*{addinfo1}{%
+  \printtexte[parens]{%
+    \usebibmacro{editor+trans+narr}%
+    \setunit*{\addsemicolon\addspace}%
+    \printfield{edition}%
+    \setunit*{\addcomma\addspace}%
+    \ifthenelse{\ifentrytype{report}\OR%
+                \ifentrytype{unpublished}\OR%
+                \ifentrytype{dataset}\OR%
+                \ifentrytype{software}\OR%
+                \ifentrytype{audio}\OR%
+                \ifentrytype{patent}\OR%
+                \ifentrytype{image}}{\usebibmacro{addinfo3}}{}%
+    \setunit*{\addcomma\addspace}%
+    \ifentrytype{inbook}{\printfield{pages}}{}%
+    \setunit*{\addcomma\addspace}%
+    \ifthenelse{\ifentrytype{book}\OR\ifentrytype{inbook}}{\printfield{volumes}}{}%
+    \setunit*{\addcomma\addspace}%
+    \ifthenelse{\ifentrytype{book}\OR\ifentrytype{inbook}}{\printfield{volume}}{}}}
+
+% Additional post title information in brackets unless it's the meta subtype "nonacademic"
+% which is used to conditionalise date formats in the .lbx files
+\newbibmacro*{addinfo2}{%
+  \printtexte[brackets]{%
+   \iffieldequalstr{entrysubtype}{nonacademic}
+     {}
+     {\iffieldbibstring{entrysubtype}
+        {\bibcplstring{\thefield{entrysubtype}}}
+        {\printfield{entrysubtype}}}%
+    \setunit*{\addsemicolon\addspace}%
+    \ifentrytype{report}{}{\printfield{note}}}}
+
+% number/issue information
+\newbibmacro*{addinfo3}{%
+  \ifentrytype{thesis}
+    {\iffieldundef{number}
+      {}
+      {\printtext[parens]{\printfield{number}}}%
+     \setunit{\addspace}%
+     \iffieldundef{type}
+       {}
+       {% Inconsistent - standard thesis types have institution inside the brackts, manual types outside ...
+        \ifthenelse{\iffieldequalstr{type}{phdthesis}\OR\iffieldequalstr{type}{mathesis}}
+          {\printtext[brackets]{\printfield{type}\setunit*{\addcomma\addspace}\printlist{institution}}}
+          {\printtext[brackets]{\printfield{type}}\setunit*{\adddot\addspace}\printlist{institution}}}}
+    {\iffieldundef{type}
+       {\iffieldundef{issue}
+         {\iffieldnums{number}{\bibcpstring{number}~}{}\printfield{number}}
+         {\printfield{issue}\setunit{\addspace}%
+        \iffieldundef{number}
+         {}
+         {\iffieldnums{number}{\bibcpstring{number}~}{}\printfield{number}}}}
+       {\printfield{type}\setunit{\addspace}%
+        \iffieldundef{number}
+          {}
+          {\bibcpstring{number}~\printfield{number}}}}% Inconsistent - numbers after type aren't necessarily numbers ...
+   \ifthenelse{\ifentrytype{dataset}\OR\ifentrytype{software}}
+    {\setunit*{\addsemicolon\addspace}%
+     \printfield{version}}
+    {}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Format of volume and number for articles
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.1 Example 6) eprints (eLocator)
 
-\DeclareFieldFormat[article]{volume}{\mkbibemph{\apanum{#1}}}
-\DeclareFieldFormat[article]{number}{\mkbibparens{\apanum{#1}}}
+\DeclareFieldFormat[article]{eid}{\bibcpstring{jourarticle}~#1}
+\DeclareFieldFormat{eprint}{#1}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Commas between title and volume for articles
+% (APA 10)   Commas between title and volume for articles
+% (APA 10.6) eLocator is part of journal info
 
 \renewbibmacro*{journal+issuetitle}{%
   \usebibmacro{journal}%
   \setunit*{\addcomma\addspace}%
-  \iffieldundef{series}
-    {}
-    {\newunit
-     \printfield{series}
-     \setunit{\addcomma\space}}%
   \printfield{volume}%
   \printfield{number}%
-  \setunit{\addspace}\newblock
+  \setunit{\addcomma\addspace}%
+  \printfield{eid}%
+  \newunit\newblock
   \usebibmacro{issuename}%
   \newunit}
 
@@ -637,44 +889,10 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.29) Additional information for non-periodicals in
-%            parenthesis after title. This is ugly but it's 
-%            hard to put in "optional parens" like this
-%            around an unknown amount of characters.
-
-\newbibmacro*{addinfo}{%
-  \ifthenelse{\iffieldundef{edition}\AND%
-              \iffieldundef{chapter}\AND%
-              \iffieldundef{volumes}\AND%
-              \iffieldundef{pages}\AND%
-              \iffieldundef{number}\AND%
-              \(\iffieldundef{volume}\OR\boolean{bbx:volseen}\)}
-  {}
-  {\printtext{\bibopenparen}%
-   \printfield{edition}%
-   \setunit*{\addcomma\addspace}%
-   \printfield{chapter}%
-   \setunit*{\addcomma\addspace}%
-   \notbool{bbx:volseen}%
-     {\iffieldundef{volume}{}{\global\booltrue{bbx:volseen}}%
-      \printfield{volume}%
-      \iffieldundef{part}{}{\printfield{part}}}{}%
-   \setunit*{\addcomma\addspace}%
-   \printfield{number}%
-   \setunit*{\addcomma\addspace}%
-   \printfield{volumes}%
-   \setunit*{\addcomma\addspace}%
-   \printfield{pages}%
-   \setunit{}%
-   \printtext{\bibcloseparen}%
-   \newunit}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) "In " precedes editor/trans list, no colon
+% "In" precedes editor/trans list, no colon
+% Use a flag to track as it could be inserted in more
+% than one potential location
 
 \newbibmacro*{in}{%
   \ifbool{bbx:in}%
@@ -686,53 +904,101 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) Editors have first names first ...
-% (APA 7.02 Example 27) ... unless there is no author
+% Names
 
-\DeclareNameFormat{apanames}{%
-  \ifthenelse{\value{listcount}=\maxprtauth\AND\value{listcount}<\value{listtotal}}
-    {\addcomma\addspace\ldots}
-    {\ifthenelse{\value{listcount}>\maxprtauth\AND\value{listcount}<\value{listtotal}}
-      {}
-      {\usebibmacro{name:apa:given-family}%
-        {\namepartfamily}%
-        {\namepartgiven}%
-        {\namepartgiveni}%
-        {\namepartprefix}%
-        {\namepartsuffix}}}%
-    \ifthenelse{\value{listcount}=\value{listtotal}}%
-      {\ifmorenames{\printdelim{andothersdelim}\bibstring{andothers}}{}}{}}
+\newcommand*{\apabbx@ifrole@item}{%
+  \xifinlist{item@\currentname @role@\the\value{listcount}}%
+            \abx@annotation@defined}
 
-\renewbibmacro*{author/editor}{%
-  \ifnameundef{author}
-    {\ifnameundef{editor}
-      {}
-      {\usebibmacro{editorinauthpos}}}
-    {\global\boolfalse{bbx:editorinauthpos}%
-     \usebibmacro{author}}}
+\newtoggle{apabbx:role:item:punct}
 
-\newbibmacro*{editorinauthpos}{%
-    \global\booltrue{bbx:editorinauthpos}%
-    \printnames[apaauthor][-\value{listtotal}]{editor}%
-    \setunit{\addspace}%
-    \ifnameundef{editor}
-      {}
-      {\printtext[parens]{\usebibmacro{apaeditorstrg}{editor}}%
-       % need to clear editor so we don't get an "In" clause later
-       % But we also need to set a flag to say we did this so we
-       % don't lose sight of the fact we once had an editor for
-       % various year placement tests
-       \clearname{editor}%
-       \setunit{\adddot\addspace}%
-       \usebibmacro{labelyear+extradate}%
-       \setunit{\adddot\addspace}}}
+\newcommand*{\apabbx@rolelist@item}{}
+\forcsvlist{\listadd\apabbx@rolelist@item}{%
+  writer,director,execproducer,producer,host,chair,guestexpert}
+
+\newcommand*{\apabbx@printrole@item@i}[1]{%
+  \ifitemannotation[\currentname][role]{#1}
+    {\iftoggle{apabbx:role:item:punct}
+       {\addspace\&\space}
+       {}%
+     \bibstring{#1}%
+     \toggletrue{apabbx:role:item:punct}}
+    {}%
+}
+
+\newcommand*{\apabbx@printrole@item}{%
+  \forlistloop{\apabbx@printrole@item@i}{\apabbx@rolelist@item}}
+
+% Individual name roles
+% takes two arguments
+% {<pre punct>}{<wrapper>}
+\newbibmacro*{role}[2]{%
+  \apabbx@ifrole@item
+    {#1%
+     #2{%
+       \togglefalse{apabbx:role:item:punct}%
+       \hasitemannotation[\currentname][role]%
+         {\getitemannotation[\currentname][role]}
+         {\apabbx@printrole@item}}}
+    {}%
+}
+
+\newcommand*{\apabbx@ifrole@field}{%
+  \xifinlist{field@\currentname @role}%
+            \abx@annotation@defined}
+
+\newtoggle{apabbx:role:field:punct}
+
+\newcommand*{\apabbx@rolelist@field}{}
+\forcsvlist{\listadd\apabbx@rolelist@field}{%
+  writers,directors,execproducers,producers,hosts,chairs,guestexperts}
+
+\newcommand*{\apabbx@printrole@field@i}[1]{%
+  \iffieldannotation[\currentname][role]{#1}
+    {\iftoggle{apabbx:role:field:punct}
+       {\addspace\&\space}
+       {}%
+     \bibstring{#1}%
+     \toggletrue{apabbx:role:field:punct}}
+    {}%
+}
+
+\newcommand*{\apabbx@printrole@field}{%
+  \forlistloop{\apabbx@printrole@field@i}{\apabbx@rolelist@field}}
+
+% roles for complete name lists
+% takes two arguments
+% {<pre punct>}{<wrapper>}
+\newbibmacro*{roles}[2]{%
+  \apabbx@ifrole@field
+    {#1%
+     #2{%
+       \togglefalse{apabbx:role:field:punct}%
+       \hasfieldannotation[\currentname][role]%
+         {\getfieldannotation[\currentname][role]}
+         {\apabbx@printrole@field}}}
+    {}%
+}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) Name format. Don't capitalise prefixes
-% (APA 6.27) Full name disambiguation using brackets
+% Name format
+
+\newcommand*{\apablx@ifnotfinalname}{%
+  \ifboolexpr{
+    test {\ifnumless{\value{listcount}}{\value{liststop}}}
+    or
+    test \ifmorenames
+    }}
+
+\newcommand*{\apablx@ifrevnameappcomma}{%
+  \iftoggle{apablx@wantcomma}
+    {\apablx@ifnotfinalname}
+    {\@secondoftwo}}
+
+\newtoggle{apablx@wantcomma}
 
 % #1 = family name
 % #2 = given name
@@ -741,18 +1007,21 @@
 % #5 = name suffix
 
 \newbibmacro*{name:apa:family-given}[5]{%
+  \togglefalse{apablx@wantcomma}%
   \ifuseprefix
     {\usebibmacro{name:delim}{#4#1}%
      \usebibmacro{name:hook}{#4#1}%
      \ifdefvoid{#4}{}{%
-       \mkbibnameprefix{#4}%
-       \ifpunctmark{'}{}{\addhighpenspace}}%
-     \mkbibnamefamily{#1\isdot}%
-     \ifdefvoid{#2}{}{\addcomma\addlowpenspace\mkbibnamegiven{#3}\isdot%
-                    \ifthenelse{\value{uniquename}>1}
-                      {\addspace\mkbibbrackets{#2}}
-                      {}}%
-     \ifdefvoid{#5}{}{\addcomma\addlowpenspace\mkbibnamesuffix{#5}\isdot}}
+       \mkbibnameprefix{#4}\isdot%
+       \ifprefchar{}{\bibnamedelimc}}%
+     \mkbibnamefamily{#1}\isdot%
+     \ifdefvoid{#2}{}{\toggletrue{apablx@wantcomma}%
+                      \revsdnamepunct\bibnamedelimd\mkbibnamegiven{#3}\isdot%
+                      \ifthenelse{\value{uniquename}>1}
+                        {\bibnamedelimd\mkbibbrackets{#2}}
+                        {}}%
+     \ifdefvoid{#5}{}{\toggletrue{apablx@wantcomma}%
+                      \addcomma\bibnamedelimd\mkbibnamesuffix{#5}\isdot}}
     {\usebibmacro{name:delim}{#1}%
      \usebibmacro{name:hook}{#1}%
      \mkbibnamefamily{#1}\isdot
@@ -761,83 +1030,87 @@
        and
        test {\ifdefvoid{#4}}}
        {}
-       {\addcomma}%
-     \ifdefvoid{#2}{}{\addlowpenspace\mkbibnamegiven{#3}%
-                    \ifthenelse{\value{uniquename}>1}
-                      {\addspace\mkbibbrackets{#2}}
-                      {}}%
+       {\revsdnamepunct}%
+     \ifdefvoid{#2}{}{\toggletrue{apablx@wantcomma}%
+                      \bibnamedelimd\mkbibnamegiven{#3}%
+                      \ifthenelse{\value{uniquename}>1}
+                        {\bibnamedelimd\mkbibbrackets{#2}}
+                        {}}%
      \ifdefvoid{#4}{}{%
-       \addhighpenspace\mkbibnameprefix{#4}%
-       \ifpunctmark{'}{}{\addhighpenspace}}%
-     \ifdefvoid{#5}{}{\addcomma\addlowpenspace\mkbibnamesuffix{#5}\isdot}}}
+       \toggletrue{apablx@wantcomma}%
+       \bibnamedelimc\mkbibnameprefix{#4}%
+       \ifprefchar{}{\bibnamedelimc}}%
+     \ifdefvoid{#5}{}{\toggletrue{apablx@wantcomma}%
+                      \addcomma\bibnamedelimd\mkbibnamesuffix{#5}\isdot}}%
+  \let\bibstring\bibcplstring
+  \usebibmacro{role}{\addspace}{\mkbibparens}%
+  \hasitemannotation[\currentname][username]
+    {\addspace\mkbibbrackets{\getitemannotation[\currentname][username]}}
+    {}%
+  \apablx@ifrevnameappcomma
+    {\addcomma}
+    {}}
 
 \newbibmacro*{name:apa:given-family}[5]{%
-  \ifuseprefix
-    {\usebibmacro{name:delim}{#2}%
-     \usebibmacro{name:hook}{#2}%
-     \ifdefvoid{#2}{}{\mkbibnamegiven{#3}\isdot%
-                    \ifthenelse{\value{uniquename}>1}
-                      {\addspace\mkbibbrackets{#2}}
-                      {}\addspace}%
-     \ifdefvoid{#4}{}{%
-       \mkbibnameprefix{#4\isdot}%
-       \ifpunctmark{'}{}{\addhighpenspace}}%
-     \mkbibnamefamily{#1\isdot}%
-     \ifdefvoid{#5}{}{\addlowpenspace\mkbibnamesuffix{#5}\isdot}}
-    {\usebibmacro{name:delim}{#1}%
-     \usebibmacro{name:hook}{#1}%
-     \ifdefvoid{#2}{}{\mkbibnamegiven{#3}\isdot%
-                    \ifthenelse{\value{uniquename}>1}
-                      {\addspace\mkbibbrackets{#2}}
-                      {}\addspace}%
-     \mkbibnamefamily{#1}\isdot
-     \ifdefvoid{#5}{}{\addcomma\addlowpenspace\mkbibnamesuffix{#5}\isdot}}}
+  \usebibmacro{name:delim}{#2#4#1#5}%
+  \usebibmacro{name:hook}{#2#4#1#5}%
+  \ifdefvoid{#2}{}{\mkbibnamegiven{#3}\isdot%
+                   \ifthenelse{\value{uniquename}>1}
+                     {\bibnamedelimd\mkbibbrackets{#2}}
+                     {}%
+                   \bibnamedelimd}%
+  \ifdefvoid{#4}{}{%
+    \mkbibnameprefix{#4}\isdot
+    \ifprefchar{}{\bibnamedelimc}}%
+  \mkbibnamefamily{#1}\isdot%
+  \ifdefvoid{#5}{}{\bibnamedelimd\mkbibnamesuffix{#5}\isdot}%
+  \let\bibstring\bibcpsstring
+  \usebibmacro{role}{\addcomma\space}{\@firstofone}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.27) Editor string in parens after author list
-% (APA 7.02 Example 21) Collapse editor and trans if same
-% (APA 7.02 Example 26) Translator
+% (APA 9.10) Role strings in parens after author list
+%            Collapse roles if same person
+% (APA 10.1 Example 10) Translator
+% (APA 10.2 Example 22) Narrator
 
-
-% Separated out into book and in* macros because otherwise
-% this makes one ugly, huge, unreadable beast.
-
-\newbibmacro*{book:editor+trans}{%
+\newbibmacro*{editor+trans+narr}{%
   \ifthenelse{\ifnameundef{editor}\AND%
               \ifnameundef{editora}\AND%
               \ifnameundef{editorb}\AND%
               \ifnameundef{editorc}\AND%
-              \ifnameundef{translator}}%
-    {}%
+              \ifnameundef{translator}\AND%
+              \ifnameundef{narrator}}%
+    {\printtext{}}% Print nothing, so the puncutation tracker is kept informed
     {\ifnamesequal{editor}{translator}%
-       {\printtext{\bibopenparen}\global\booltrue{bbx:parens}%
-        \printnames[apanames][-\value{listtotal}]{editor}%
+       {\printnames[apanames][-\value{listtotal}]{editor}%
         \setunit*{\addcomma\addspace}%
         \usebibmacro{apaeditorstrg}{editor}%
         \setunit*{\addspace\&\space}%
-        \printtext{\bibcpstring{translator}}%
-        \ifbool{bbx:parens}{\printtext{\bibcloseparen}\global\boolfalse{bbx:parens}}{}}
-       {\printtext{\bibopenparen}\global\booltrue{bbx:parens}%
-        \ifnameundef{editor}%
+        \bibcpstring{translator}}
+       {\ifnameundef{editor}%
           {}%
           {\printnames[apanames][-\value{listtotal}]{editor}%
            \setunit{\addcomma\addspace}%
            \usebibmacro{apaeditorstrg}{editor}%
            \clearname{editor}%
-           \setunit{\adddot}%
-           \setunit*{\addspace\&\space}}%
+           \setunit{\addsemicolon\space}}%
         \ifnameundef{translator}%
           {\setunit{}}%
           {\printnames[apanames][-\value{listtotal}]{translator}%
            \setunit{\addcomma\addspace}%
-           \printtext{\bibcpstring{translator}}%
+           \bibcpstring{translator}%
            \clearname{translator}%
-           \setunit{\adddot}}%
-        \ifbool{bbx:parens}{\printtext{\bibcloseparen}\global\boolfalse{bbx:parens}}{}}}}
- 
+           \setunit{\addsemicolon\space}}%
+        \ifnameundef{narrator}%
+          {\setunit{}}%
+          {\printnames[apanames][-\value{listtotal}]{narrator}%
+           \setunit{\addcomma\addspace}%
+           \bibcpstring{narrator}%
+           \clearname{narrator}}}}}
+
 \newbibmacro*{editor+trans}{%
   \ifthenelse{\ifnameundef{editor}\AND%
               \ifnameundef{editora}\AND%
@@ -848,17 +1121,17 @@
     {\ifnamesequal{editor}{translator}%
       {\usebibmacro{in}%
        \printnames[apanames][-\value{listtotal}]{editor}%
-       \setunit{\addspace\bibopenparen\global\booltrue{bbx:parens}}%
-       \usebibmacro{apaeditorstrg}{editor}%
-       \setunit*{\addspace\&\space}%
-       \printtext{\bibcpstring{translator}}%
-       \ifbool{bbx:parens}{\printtext{\bibcloseparen}\global\boolfalse{bbx:parens}}{}}
+       \setunit{\addspace}%
+       \printtext[parens]{%
+         \usebibmacro{apaeditorstrg}{editor}%
+         \setunit*{\addspace\&\space}%
+         \bibcpstring{translator}}}
       {\ifnameundef{translator}%
         {}%
         {\setunit{\addspace}%
          \printtext[parens]{\printnames[apanames][-\value{listtotal}]{translator}%
-         \setunit{\addcomma\addspace}%
-         \printtext{\bibcpstring{translator}}}%
+           \setunit{\addcomma\addspace}%
+           \bibcpstring{translator}}%
          \clearname{translator}%
          \setunit{\adddot\addspace}}%
        \usebibmacro{in}%
@@ -868,11 +1141,8 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.29) Special journal issues
-
-\DeclareFieldFormat[periodical]{title}{#1\isdot}
-\DeclareFieldFormat[periodical]{issuetitle}{\mkbibemph{#1}\isdot}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Special journal issues are periodicals
 
 \renewbibmacro*{periodical}{%
   \iffieldundef{title}
@@ -884,16 +1154,18 @@
 
 \renewbibmacro*{title+issuetitle}{%
   \usebibmacro{periodical}%
-  \newunit
-  \usebibmacro{issue}%
-  \setunit*{\addcomma\addspace}%
-  \setunit{\addcomma\space}}
+  \setunit{\addspace}%
+  \printfield{issuetitle}}%
+
+\newbibmacro*{pnumber}{%
+  \printfield{volume}%
+  \printfield{number}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.02 Example 21) Original year
+% (APA 10.1 Example 10) Original year
 
 % Only give ORIGYEAR in references if both:
 %   YEAR is also given
@@ -904,15 +1176,18 @@
     not test {\iffieldundef{origyear}}
     not test {\iffieldundef{labelyear}}
     and not test {\iffieldsequal{labelyear}{origyear}}}
-      {\printtext{\mkbibparens{\bibcpstring{origyear}~\printorigdate}}}
-      {}}
+    {\printtext[parens]{%
+       \bibcpstring{origyear}
+       \setunit{\addnbspace}%
+       \printorigdate}%
+     \renewcommand*{\finentrypunct}{\relax}}
+    {}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.02) "In " before booktitle, edited or not
-% (APA 6.30) Non-periodical volume number followed by "."
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.3) Reference work references
 
 \renewbibmacro*{maintitle+title}{%
   \iffieldsequal{maintitle}{title}
@@ -925,11 +1200,8 @@
        \newunit\newblock
        \iffieldundef{volume}
          {}
-         {\setunit{\global\booltrue{bbx:volseen}}%
-          \printfield{volume}%
+         {\printfield{volume}%
           \printfield{part}%
-          \setunit{\adddot}%
-          \printfield{number}%
           \setunit{\adddot\space}}}}%
   \usebibmacro{title}%
   \newunit}
@@ -937,20 +1209,32 @@
 \renewbibmacro*{maintitle+booktitle}{%
   \ifthenelse{\iffieldundef{maintitle}\AND\iffieldundef{booktitle}}
     {}
-    {\usebibmacro{in}%
+    {\ifthenelse{\ifnameundef{editor}\AND
+                 \ifnameundef{editora}\AND
+                 \ifnameundef{editorb}\AND
+                 \ifnameundef{editorc}}{\usebibmacro{in}}{}%
      \iffieldundef{maintitle}
       {}
       {\usebibmacro{maintitle}%
        \newunit\newblock
        \iffieldundef{volume}
          {}
-         {\setunit{\addspace\global\booltrue{bbx:volseen}}%
-          \printfield{volume}%
+         {\printfield{volume}%
           \printfield{part}%
-          \setunit{\adddot}%
-          \printfield{number}%
           \setunit{\adddot\addspace}}}%
-    \usebibmacro{booktitle}}}
+      \usebibmacro{booktitle}%
+      \setunit{\addspace}%
+      \usebibmacro{addinfo1}}}
+
+\renewbibmacro*{maintitle}{%
+  \ifthenelse{\iffieldundef{maintitle}\AND\iffieldundef{mainsubtitle}}
+    {}
+    {\printtext[maintitle]{%
+       \printfield[apacase]{maintitle}%
+       \setunit{\subtitlepunct}%
+       \printfield[apacase]{mainsubtitle}}%
+    \setunit{\addspace}}
+  \printfield{maintitleaddon}}
 
 \renewbibmacro*{booktitle}{%
   \ifthenelse{\iffieldundef{booktitle}\AND\iffieldundef{booksubtitle}}
@@ -963,431 +1247,372 @@
   \printfield{booktitleaddon}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.29) Colon separates title/subtitle
-%            Skip if following terminating punctuation
+%  Colon separates title/subtitle
+%  Skip if following terminating punctuation
 
 \renewcommand*{\subtitlepunct}{\ifterm{}{\addcolon}\space}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Format of volume depends on whether
-%            there is a maintitle (what APA calls "series") or not.
-
-\DeclareFieldFormat{volume}{\iffieldundef{maintitle}
-                              {\bibcpstring{volume}~\apanum{#1}}
-                              {\mkbibemph{\bibcpstring{volume}~\apanum{#1}}}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Number for reports with no prefix if not
-%            a numeral. Report number is optional and so must be
-%            the parens.
-
-\DeclareFieldFormat{number}{\iffieldundef{volume}
-                             {\ifinteger{\thefield{number}}
-                               {\addspace\mkbibemph{\bibcpstring{number}~\apanum{#1}}\adddot}
-                               {\apanum{#1}}}
-                             {\mkbibemph{\apanum{#1}}}}
-
-\DeclareFieldFormat[report]{number}{\mkbibparens{\iffieldundef{type}
-                                                  {}
-                                                  {\printfield{type}\setunit{\addspace}}%
-                                                  \bibcpstring{number}~\apanum{#1}}}
-
-\newbibmacro*{apa:reportnum}{%
-  \iffieldundef{number}%
-    {}%
-    {\printfield{number}}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Location only shows first item
-
-\DeclareListFormat{default}{%
-  \usebibmacro{list:delim}{#1}%
-  #1\isdot}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 6.30) Periodicals emph number, location
-%            and pages (with no prefix)
-
-\DeclareFieldFormat[periodical]{pages}{\mkbibemph{#1}}
-\DeclareFieldFormat[periodical]{number}{\mkbibemph{\apanum{#1}}}
-\DeclareListFormat[periodical]{location}{\mkbibemph{#1}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.02 Example 38) Proceedings emph number, location
-%                       and location. Pages have no prefix
-
-\DeclareListFormat[proceedings]{location}{\mkbibemph{#1}}
-\DeclareFieldFormat[proceedings]{pages}{#1}
-\DeclareFieldFormat[proceedings]{number}{\mkbibemph{\apanum{#1}}}
-\DeclareFieldFormat[proceedings]{volume}{\mkbibemph{\apanum{#1}}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.02 Example 40--44) Theses titles and volume
-%                           Titles are not emph if only an abstract
+% (APA 10.2.24) Multiple publishers, semi-colon sep
 
-\DeclareFieldFormat[thesis]{title}{\mkbibemph{#1}}
+\newbibmacro*{publisher:delim}[1]{%
+  \ifnumgreater{\value{listcount}}{\value{liststart}}
+    {\printdelim[publisher]{multilistdelim}}
+    {}}
+
+\DeclareDelimFormat[publisher]{multilistdelim}{\addsemicolon\space}
+\DeclareDelimFormat[publisher]{finallistdelim}{\addsemicolon\space}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.05) Unpublished theses
+%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.10) Software
 
-\DeclareFieldFormat[unpublished]{title}{\mkbibemph{#1}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.06) Reviews
-
-% The title of the review depends on the entrytype of the thing reviewed
-\DeclareFieldFormat[review]{title}{%
-  \entrydata*{\thefield{related}}{%
-    \iffieldequalstr{entrytype}{article}
-      {\mkbibemph{\printtext[apacase]{\thefield{savedtitle}}}}
-      {\printtext[apacase]{\thefield{savedtitle}}}}}
-
-\DeclareFieldFormat[review]{pages}{#1}
-\DeclareFieldFormat[review]{volume}{\mkbibemph{\apanum{#1}}}
-\DeclareFieldFormat[review]{number}{\mkbibparens{\apanum{#1}}}
-
-\newbibmacro*{reviewauthor}{%
-  \ifnameundef{author}
-    {\booltrue{bbx:noreviewauthor}}
-    {\usebibmacro{author}}}
+\newbibmacro*{appentry}{%
+  \iffieldundef{appentry}
+    {\newunit\newblock}
+    {\printfield[apacase]{appentry}%
+     \newunit\newblock
+     \usebibmacro{in}%
+     \setunit{\addspace}}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Media authors
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.1 Example 18) Comment on article
 
-\newbibmacro*{producer}{%
-  \ifnameundef{producer}
-    {}
-    {\printnames[apaauthor][-\value{listtotal}]{producer}%
-     \newunit
-     \printtext[parens]{\bibcpstring{producer}}%
-     \setunit*{\addcomma\addspace\&\addspace}}}
+\newcommand*{\begrelateddelimcommenton}{\addspace}
+\DeclareFieldFormat{related:commenton}{\def\bibstring{\blx@imc@bibcpstring}\mkbibbrackets{#1}}
 
-\newbibmacro*{director}{%
-  \ifnameundef{director}
-    {}
-    {\printnames[apaauthor][-\value{listtotal}]{director}%
-     \newunit
-     \printtext[parens]{\bibcpstring{director}}%
-     \setunit*{\addcomma\addspace\&\addspace}}}
-
-\newbibmacro*{writer}{%
-  \ifnameundef{writer}
-    {}
-    {\printnames[apaauthor][-\value{listtotal}]{writer}%
-     \newunit
-     \printtext[parens]{\bibcpstring{writer}}%
-     \setunit*{\addcomma\addspace\&\addspace}}}
+\newbibmacro*{related:commenton}[1]{%
+  \entrydata*{#1}{%
+    \printtext{\mkbibquote{\printfield[apacase]{title}}}}}
 
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%
-% (APA 7.07) Misc and data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.7) Reviews - role strings need to be the
+%                      short versions in reviews
 
-\DeclareFieldFormat[data]{title}{\mkbibemph{#1}}
-\DeclareFieldFormat[data]{entrysubtype}{\mkbibbrackets{#1}}
-\DeclareFieldFormat[misc]{entrysubtype}{\mkbibbrackets{#1}}
-\DeclareFieldFormat[misc]{nameaddon}{\mkbibparens{#1}}
-\DeclareFieldFormat[misc]{title}{\iffieldequalstr{titleisdescription}{true}{\mkbibbrackets{#1}}{{#1}\isdot}}
+\DeclareFieldFormat{reviewtitle}{%
+  \iffieldequalstr{entrysubtype}{tvepisode}
+    {\mkbibquote{\bbx@colon@search\MakeSentenceCase*{#1}}}
+    {\bbx@colon@search\MakeSentenceCase*{#1}}}
 
-\newbibmacro*{datatitle}{%
-  \iffieldundef{title}
-    {\iffieldundef{entrysubtype}
-      {}
-      {\printfield{entrysubtype}}}
-    {\iffieldundef{entrysubtype}
-      {}
-      {\usebibmacro{title}\addspace
-       \printfield{entrysubtype}}}}
+\newcommand*{\begrelateddelimreviewof}{\addspace}
+\DeclareFieldFormat{related:reviewof}{\def\bibstring{\blx@imc@bibcpsstring}\mkbibbrackets{#1}}
+
+\newbibmacro*{related:reviewof}[1]{%
+  \entrydata*{#1}{%
+    \printtext{\mkbibemph{%
+                 \printfield[reviewtitle]{title}%
+                 \iffieldundef{subtitle}
+                   {}
+                   {\setunit{\addcolon\addspace}%
+                    \printfield[reviewtitle]{subtitle}}}%
+               \setunit{\addcomma\addspace}%
+               \biblstring{byauthor}%
+               \setunit{\addspace}%
+               \usebibmacro{author/editor:related}}}}
 
 %
-%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.07) Audiovisual
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.13) Audio
 
-\DeclareFieldFormat[video]{title}{\iffieldundef{maintitle}{\mkbibemph{#1}}{#1}}
-\DeclareFieldFormat[video]{maintitle}{\mkbibemph{#1}}
-\DeclareFieldFormat[video]{entrysubtype}{\mkbibbrackets{#1}}
-\DeclareFieldFormat[audio]{entrysubtype}{\mkbibbrackets{#1}}
-\DeclareFieldFormat[music]{title}{#1}
-\DeclareFieldFormat[music]{maintitle}{\mkbibemph{#1}}
-\DeclareFieldFormat[music]{mainsubtitle}{\mkbibemph{#1}}
-\DeclareFieldFormat[audio]{howpublished}{\mkbibparens{#1}}
+\newbibmacro*{mainaudio}{%
+  \iffieldundef{maintitle}{}
+    {\iffieldequalstr{entrysubtype}{podcastepisode}{\bibcpstring{in}}{\bibcpstring{on}}%
+     \setunit{\addspace}%
+     \printfield{maintitle}}}
 
-\newbibmacro*{tvseries}{%
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.12) Audiovisual
+
+\newbibmacro*{mainvideo}{%
   \iffieldundef{maintitle}
     {}
     {\usebibmacro{in}%
-     \ifnameundef{execproducer}
-       {}
-       {\printnames[apanames][-\value{listtotal}]{execproducer}%
-         \addspace
-         \printtext[parens]{\bibcpstring{execproducer}}}
-     \setunit{\addcomma\addspace}%
-     \usebibmacro{avmaintitle}%
-     \newunit}}
-
-\newbibmacro*{avmaintitle}{%
-  \ifthenelse{\iffieldundef{maintitle}\AND\iffieldundef{mainsubtitle}}
-    {}
-    {\printtext[maintitle]{%
-       \printfield[apacase]{maintitle}%
-       \setunit{\subtitlepunct}%
-       \printfield[apacase]{mainsubtitle}}%
-    \setunit{\addspace}}
-  \printfield{maintitleaddon}}
-
-\newbibmacro*{album}{%
-  \iffieldundef{maintitle}
-    {}
-    {\bibcpstring{on}%
+     \printnames[apanames][-\value{listtotal}]{execproducer}%
      \setunit{\addspace}%
-     \usebibmacro{avmaintitle}%
-     \newunit}}
-
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%
-% (APA 7.10) Letter/Letters
-
-\DeclareFieldFormat[letter]{title}{\mkbibbrackets{#1}}
-\DeclareFieldFormat[letters]{title}{#1}
-\DeclareFieldFormat[letter]{number}{\mkbibparens{#1}}
-\DeclareFieldFormat[letters]{number}{\mkbibparens{#1}}
-
-%
-%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%
-% (APA 6.31) URLs
-
-\DeclareFieldFormat{url}{\url{#1}}
-\DeclareFieldFormat{abstracturl}{\url{#1}}
-\DeclareFieldFormat{urldate}{#1}
-
-\renewbibmacro*{url+urldate}{%
-     \ifthenelse{\(\iffieldundef{url}\AND\iffieldundef{abstracturl}\AND\iffieldundef{abstractloc}\)\OR\NOT\iffieldundef{doi}}
-       {}
-       {\ifthenelse{\iffieldundef{abstracturl}\AND\iffieldundef{abstractloc}}
-         {}
-         {\printtext{\bibcpstring{abstract}}\addspace}%
-          \printtext{\bibstring{retrieved}}%
-          \setunit{\addspace}%
-          \iffieldundef{urlyear}
-            {}
-            {\printtext{\printurldate}%
-             \setunit*{\urldatecomma}}%
-          \printtext{\bibstring{from}}%
-          \setunit*{\addspace}%
-          \printfield{urldescription}%
-          \setunit*{\addcolon\addspace}%
-          \iffieldundef{url}{}{\printfield{url}\renewcommand*{\finentrypunct}{\relax}}%
-          \iffieldundef{abstractloc}{}{\printfield{abstractloc}\renewcommand*{\finentrypunct}{\relax}}%
-          \iffieldundef{abstracturl}{}{\printfield{abstracturl}\renewcommand*{\finentrypunct}{\relax}}}}
-
-%
-%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.11) Non-emph titles for online items
-%            Subtype in brackets
-
-
-\DeclareFieldFormat[online]{title}{#1}
-\DeclareFieldFormat[online]{entrysubtype}{\mkbibbrackets{#1}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA A7.07) Emph titles for patents
-
-\DeclareFieldFormat[patent]{title}{\mkbibemph{#1}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.08 Example 56) Software has version in title
-
-\DeclareFieldFormat[software]{title}{#1}
-\DeclareFieldFormat[software]{version}{\mkbibparens{\bibcpstring{version}~#1}}
-
-\newbibmacro*{apa:softwaretitle}{%
-  \printtext[title]{%
-  \printfield[apacase]{title}%
-  \setunit{\subtitlepunct}%
-  \printfield[apacase]{subtitle}}%
-  \setunit{\addspace}%
-  \iffieldundef{version}%
-     {}
-     {\printfield{version}}
-  \printfield{titleaddon}}
+     \ifthenelse{\the\c@execproducer=1}%
+       {\bibcplstring[\mkbibparens]{execproducer}}
+       {\bibcplstring[\mkbibparens]{execproducers}}%
+     \setunit{\addcomma\addspace}%
+     \printfield{maintitle}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Hacky bits to suppress final period in some cases.
-% * If there is an ORIGYEAR field (APA 7.02:21)
-% * Unless there is a RELATED and ADDENDUM
-\newbibmacro*{apa:finpunct}{%
-  \iffieldundef{origyear}
-    {\ifboolexpr{
-       test {\iffieldundef{addendum}}
-       and
-       test {\iffieldundef{related}}}
-     {}
-     {\renewcommand*{\finentrypunct}{\relax}}}
-    {\renewcommand*{\finentrypunct}{\relax}}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-       
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Related entries
+%
+% Have to force capitlisation bibstring variant because the delim
+% has no printable char and this breaks default capitalisation
 
-\DeclareFieldFormat{related:reprintfrom}{\mkbibparens{#1}}
-\DeclareFieldFormat{related:reviewof}{\mkbibbrackets{#1}}
+% Suppress final period after reprints in parens
+\renewbibmacro*{endrelated}{%
+  \iffieldequalstr{relatedtype}{reprintfrom}
+    {\renewcommand*{\finentrypunct}{\relax}}
+    {}}
+
+\newcommand*{\begrelateddelimreprintfrom}{\addperiod\addspace}
+
+% Some APA related entries are just after title, some are at the end of
+% the entry. This is for those after the title
+\newbibmacro*{apa:related}{%
+  \iffieldundef{related}
+    {}
+    {\ifthenelse{\iffieldequalstr{relatedtype}{reviewof}\OR%
+                 \iffieldequalstr{relatedtype}{commenton}}
+       {\usebibmacro{related:init}%
+        \usebibmacro{related}%
+        \togglefalse{bbx:related}}% disable default related expansion later on
+       {}}}
+
+\DeclareFieldFormat{related:reprintfrom}{\let\bibstring\bibcpstring\mkbibparens{#1}}
 
 \renewbibmacro*{related:reprintfrom}[1]{%
   \entrydata*{#1}{%
-    \printtext{\mkbibemph{\printfield[apacase]{title}}}%
-    \setunit{\bibpagespunct}%
-    \printfield{pages}%
-    \setunit{\addcomma\addspace}%
-    \bibstring{byauthor}\addspace
-    \printnames[apanames][-\value{listtotal}]{editor}%
-    \printnames[apanames][-\value{listtotal}]{author}%
-    \setunit{\addcomma\addspace}%
-    \usebibmacro{location+publisher}%
-    \newunit\newblock
-    \usebibmacro{related}}}
-
-\newbibmacro*{related:reviewof}[1]{%
-  \setunit{}% Sanitise this in case no author
-  \entrydata*{#1}{%
     \ifentrytype{article}
-      {\printtext{\printfield[apacase]{title}}}
-      {\printtext{\mkbibemph{\printfield[apacase]{title}}}}%
-    \setunit{\addspace}%
-    \bibstring{byauthor}\addspace
-    \printnames[apanames][-\value{listtotal}]{author}%
-    \printnames[apanames][-\value{listtotal}]{producer}%
-    \printnames[apanames][-\value{listtotal}]{director}%
-    \setunit{\addcomma\addspace}%
-    \printdateextra
-    \newunit\newblock
-    \usebibmacro{related}}}
+      {\mkbibquote{%
+         \printfield[apacase]{title}%
+         \setunit{\subtitlepunct}%
+         \printfield[apacase]{subtitle}}%
+       \setunit{\addcomma\addspace}%
+       \printlabeldateextra
+       \setunit{\addcomma\addspace}%
+       \usebibmacro{journal}%
+       \setunit*{\addcomma\addspace}%
+       \printfield{volume}%
+       \printfield[reprint]{number}%
+       \setunit*{\addcomma\addspace}%
+       \usebibmacro{eprint}%
+       \setunit{\addcomma\addspace}%
+       \iffieldundef{issuetitle}
+         {}
+         {\printtext[issuetitle]{%
+            \printfield[noformat]{issuetitle}%
+            \setunit{\subtitlepunct}%
+            \printfield[noformat]{issuesubtitle}}}%
+       \setunit{\addcomma\addspace}%
+       \printfield{pages}%
+       \setunit{\addcomma\addspace}%
+       \printfield{note}%
+       \setunit{\addcomma\addspace}%
+       \usebibmacro{location+publisher}%
+       \setunit{\addcomma\addspace}%
+       \usebibmacro{doi+url}%
+       \setunit{}}
+   {\ifentrytype{book}
+      {\mkbibemph{%
+         \printfield[apacase]{title}%
+         \setunit{\subtitlepunct}%
+         \printfield[apacase]{subtitle}}%
+       \setunit{\addcomma\addspace}%
+       \printfield[pageswithprefix]{pages}%
+       \setunit{\addcomma\addspace}%
+       \biblstring{byauthor}\space
+       \printnames[apanames][-\value{listtotal}]{editor}%
+       \setunit{\addcomma\addspace}%
+       \usebibmacro{apaeditorstrg}{editor}%
+       \setunit{\addcomma\addspace}%
+       \printlabeldateextra
+       \setunit{\addcomma\addspace}%
+       \usebibmacro{location+publisher}%
+       \setunit{\addcomma\addspace}%
+       \usebibmacro{doi+url}%
+       \setunit{}}
+     {}}}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% (APA 7.x) General type layouts
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 9.51) Annotations
+
+\newtoggle{bbx:annotation}
+\DeclareBiblatexOption{global,type,entry}[boolean]{annotation}[true]{%
+  \settoggle{bbx:annotation}{#1}}
+\ExecuteBibliographyOptions{annotation=true}
+
+\long\def\blxapa@appunit#1{%
+  \iftoggle{blx@keepunit}
+    {}
+    {\gappto\blx@unitpunct{#1}%
+     \global\toggletrue{blx@unit}}}
+
+\renewbibmacro*{annotation}{%
+  \iftoggle{bbx:annotation}
+    {\begingroup
+     \togglefalse{blx@bibliography}%
+     \blxapa@appunit{\newline}%
+     \iffieldundef{annotation}
+       {\printfile[annotation]{\bibannotationprefix\thefield{entrykey}.tex}}
+       {\printfield{annotation}}%
+     \endgroup}
+    {}}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 11.4) Court cases
+
+\newtoggle{apa:courtdate}
+
+\DeclareListFormat{citation}{%
+  \global\toggletrue{apa:courtdate}%
+  \hasitemannotation[\currentlist][citeorg]%
+    {#1\addspace\mkbibparens{\getitemannotation[\currentlist][citeorg]%
+     \hasitemannotation[\currentlist][citedate]
+       {\addspace\getitemannotation[\currentlist][citedate]%
+         \global\togglefalse{apa:courtdate}} % disable normal date printing if it's in the citation info
+       {}}}
+    {\ifitemannotation[\currentlist][citeinfo]{appeal}
+       {\mkbibemph{#1}}
+       {#1}}%
+  \ifthenelse{\value{listcount}<\value{liststop}}
+    {\addcomma\addspace}
+    {}}
+
+\DeclareFieldFormat{courtdate}{%
+  % disable normal date printing if it's in the citation info
+  \iftoggle{apa:courtdate}
+    {\iflistundef{organization}
+      {\mkbibparens{#1}}
+      {\mkbibparens{%
+         \printlist{organization}\space #1}}}
+    {}}
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 11.5) Statutes
+
+\newbibmacro*{statdate}{%
+  \iffieldundef{origyear}
+    {\printtext[parens]{\printlabeldate}}
+    {\printtext[parens]{\printorigdate%
+                        \addspace\&\addspace rev\adddot\addspace\printlabeldate}}}
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 11.6) Legislative Material and Admin Material
+
+\newbibmacro*{location:delim}[1]{%
+  \ifnumgreater{\value{listcount}}{\value{liststart}}
+    {\printdelim[location]{multilistdelim}}
+    {}}
+
+\DeclareDelimFormat[location]{multilistdelim}{\addcomma\space}
+\DeclareDelimFormat[location]{finallistdelim}{\addcomma\space}
+
+\newbibmacro*{legmattitle}{%
+  \iffieldundef{title}
+    {\ifbibxstring{\thefield{source}}{\bibcpsstring{\thefield{source}}}{}%
+     \setunit*{\addspace}%
+     \bibcpsstring{\thefield{type}}%
+     \setunit*{\addspace}%
+     \printfield[legmaterialnum]{number}}
+    {\printfield{title}%
+     \setunit*{\addcolon\addspace}\newblock
+     \printfield{subtitle}}}
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (APA 10.x) General entrytype drivers
+
+% Custom driver to make a cleaner example for 9.44
+\DeclareBibliographyDriver{nameonly}{%
+  \usebibmacro{begentry}%
+  \printnames[apaauthor][-\value{listtotal}]{author}%
+  \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{article}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \printdelim{nametitledelim}\newblock
   \usebibmacro{title}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
   \newunit\newblock
   \usebibmacro{journal+issuetitle}%
   \setunit{\bibpagespunct}%
   \printfield{pages}%
   \newunit\newblock
-  \printfield{note}%
+  \printfield{howpublished}%
   \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
+  \usebibmacro{doi+url}%
+  \newblock
+  \usebibmacro{origyear}%
   \newunit\newblock
   \printfield{addendum}%
-  \newunit\newblock
+  \setunit{\addspace}\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{apa:pageref}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
-\DeclareBibliographyDriver{newsarticle}{%
+\DeclareBibliographyDriver{audio}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
   \newunit\newblock
-  \usebibmacro{newspaper}%
-  \setunit{\bibpagespunct}%
-  \printfield{pages}%
+  \usebibmacro{mainaudio}%
   \newunit\newblock
-  \printfield{entrysubtype}%
+  \usebibmacro{location+publisher}%
   \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
+  \usebibmacro{doi+url}%
+  \newblock
+  \usebibmacro{origyear}%
   \newunit\newblock
   \printfield{addendum}%
-  \newunit\newblock
+  \setunit{\addspace}\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{apa:pageref}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{book}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{maintitle+title}%
-  \setunit{\addspace}\newblock
-  \usebibmacro{book:editor+trans}%
   \newunit\newblock
-  \printfield{series}%
+  \printlist{publisher}%
   \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
   \usebibmacro{origyear}%
   \newunit\newblock
   \printfield{addendum}%
@@ -1396,118 +1621,96 @@
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
-\DeclareBibliographyDriver{booklet}{%
+\DeclareBibliographyDriver{constitution}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \bibcpsstring{\thefield{source}}%
+  \setunit{\addspace}\newblock
+  \bibcpsstring{\thefield{type}}%
+  \setunit{\addspace}\newblock
+  \iffieldundef{amendment}{}{\bibsstring{amendment}\setunit{\addspace}\printfield{amendment}}%
+  \setunit{\addcomma\addspace}\newblock
+  \iffieldundef{article}{}{\bibsstring{article}\setunit{\addspace}\printfield{article}}%
+  \setunit{\addcomma\addspace}\newblock
+  \iffieldundef{section}{}{\bibsstring{section}\setunit{\addspace}\printfield{section}}%
+  \setunit{\addcomma\addspace}\newblock
+  \iffieldundef{part}{}{\bibsstring{paragraph}\setunit{\addspace}\printfield{part}}%
+  \setunit{\addspace}\newblock
+  \ifkeyword{repealed}{\printtext[parens]{\biblcsstring{repealed}\setunit{\addspace}\printeventdate}}{}%
+  \usebibmacro{doi+url}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{dataset}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \newunit\newblock
-  \printfield{howpublished}%
   \newunit\newblock
   \printfield{type}%
   \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{proceedings}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \newunit\newblock
-  \usebibmacro{booktitle}%
-  \setunit{\addcomma\addspace}\newblock
-  \usebibmacro{location+publisher}%
-  \setunit{\addcomma\addspace}%
-  \printfield{volume}%
-  \setunit*{\adddot}%
-  \printfield{number}%
-  \setunit{\addcomma\addspace}
-  \printfield{pages}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
   \printlist{organization}%
   \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
+  \usebibmacro{location+publisher}%
   \newunit\newblock
+  \printlist{institution}%
+  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
-\DeclareBibliographyDriver{collection}{%
+\DeclareBibliographyDriver{image}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
   \newunit\newblock
   \usebibmacro{location+publisher}%
-  \setunit{\addcomma\addspace}%
-  \printfield{number}%
   \newunit\newblock
-  \printfield{series}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{inbook}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \ifthenelse{\NOT\iffieldundef{title}\OR\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
+  \newunit\newblock
   \usebibmacro{editor+trans}%
   \newblock
   \usebibmacro{maintitle+booktitle}%
+  \newunit\newblock
+  \printlist{publisher}%
+  \newunit\newblock
+  \usebibmacro{doi+url}%
   \newblock
-  \usebibmacro{addinfo}%
-  \newunit\newblock
-  \printfield{series}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \setunit*{\addspace}\newblock
   \usebibmacro{origyear}%
   \newunit\newblock
   \printfield{addendum}%
@@ -1516,166 +1719,176 @@
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
-\DeclareBibliographyDriver{incollection}{%
+\DeclareBibliographyDriver{jurisdiction}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \ifthenelse{\NOT\iffieldundef{title}\OR\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \usebibmacro{editor+trans}%
-  \setunit*{\addcomma\addspace}\newblock
-  \usebibmacro{maintitle+booktitle}%
-  \newblock
-  \usebibmacro{addinfo}%
+  \printfield{title}%
+  \setunit{\addcomma\addspace}\newblock
+  \printlist{citation}%
+  \setunit{\addspace}\newblock
+  \printtext[courtdate]{\printlabeldate}%
   \newunit\newblock
-  \printfield{series}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{origyear}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{doi+url}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
-\DeclareBibliographyDriver{inproceedings}{%
+\DeclareBibliographyDriver{legal}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \ifthenelse{\NOT\iffieldundef{title}\OR\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \usebibmacro{editor+trans}%
-  \setunit*{\addcomma\addspace}\newblock
-  \usebibmacro{maintitle+booktitle}%
-  \iffieldundef{eventyear}{}{\setunit{\addcomma\addspace}}%
-  \printeventdate
-  \setunit*{\addspace}\newblock
-  \usebibmacro{addinfo}%
+  \printfield{title}%
+  \setunit{\addspace}%
+  \printfield{titleaddon}%
+  \setunit{\addcomma\addspace}\newblock
+  \printlabeldate%
+  \setunit{\addcomma\addspace}\newblock
+  \usebibmacro{doi+url}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{legislation}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \printfield{title}%
+  \setunit{\addspace}%
+  \printfield{titleaddon}%
+  \setunit{\addcomma\addspace}\newblock
+  \printlist{location}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{statdate}%
   \newunit\newblock
-  \printfield{series}%
-  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{legadminmaterial}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \usebibmacro{legmattitle}%
+  \setunit{\addcomma\addspace}\newblock
+  \printlist{citation}%
+  \setunit{\addspace}\newblock
+  \printtext[parens]{\ifkeyword{proposed}{\bibstring{proposed}\space}{}\printlabeldate}%
+  \setunit{\addspace}\newblock
   \printfield{note}%
   \newunit\newblock
-  \printlist{organization}%
-  \newunit
-  \printfield[apacase]{eventtitle}%
-  \newunit
-  \printfield{venue}%
+  \usebibmacro{doi+url}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{legmaterial}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \usebibmacro{legmattitle}%
+  \setunit{\addcomma\addspace}\newblock
+  \printlist{location}%
+  \setunit{\addspace}\newblock
+  \printtext[parens]{\printlabeldate}%
+  \setunit{\addspace}\newblock
+  \printfield{note}%
   \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{origyear}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{doi+url}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{manual}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \newunit\newblock
-  \printfield{edition}%
-  \newunit\newblock
-  \printfield{series}%
   \newunit\newblock
   \printfield{type}%
   \newunit
   \printfield{version}%
-  \newunit
-  \printfield{note}%
   \newunit\newblock
   \printlist{organization}%
   \newunit
   \usebibmacro{location+publisher}%
   \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{misc}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
+  \usebibmacro{title}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
+  \newunit\newblock
+  \printlist{organization}%
+  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
+  \printfield{addendum}%
+  \newunit\newblock
+  \iftoggle{bbx:related}
+    {\usebibmacro{related:init}%
+     \usebibmacro{related}}
+    {}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{online}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \ifthenelse{\iffieldundef{title}\AND\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \printfield{entrysubtype}%
+  \setunit{\addspace}\newblock
+  \printfield{version}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
+  \newunit\newblock
+  \usebibmacro{eprint}%
+  \newunit\newblock
+  \printlist{organization}%
   \addperiod\addspace
-  \iftoggle{bbx:doi}
-    {\printfield{doi}%
-     \iffieldundef{doi}{}{\renewcommand*{\finentrypunct}{\relax}}}
-    {}%
   \newunit\newblock
-  \iftoggle{bbx:eprint}
-    {\usebibmacro{eprint}%
-     \iffieldundef{eprint}{}{\renewcommand*{\finentrypunct}{\relax}}}
-    {}%
-  \newunit\newblock
-  \usebibmacro{url+urldate}%
-  \iffieldundef{url}{}{\renewcommand*{\finentrypunct}{\relax}}
-  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{patent}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \ifthenelse{\NOT\iffieldundef{title}\OR\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \setunit*{\addspace}%
-  \printfield{number}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
   \newunit\newblock
   \usebibmacro{location+publisher}%
   \newunit\newblock
-  \usebibmacro{byholder}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
+  \usebibmacro{doi+url}%
   \newunit\newblock
   \printfield{addendum}%
   \newunit\newblock
@@ -1683,28 +1896,25 @@
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{periodical}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title+issuetitle}%
+  \setunit{\adddot\addspace}
+  \usebibmacro{journal}%
   \setunit{\addcomma\addspace}
   \printlist{location}%
   \setunit{\addcomma\addspace}
-  \printfield{volume}%
-  \setunit*{\adddot}%
-  \printfield{number}%
+  \usebibmacro{pnumber}%
   \setunit{\addcomma\addspace}
   \printfield{pages}%
   \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
+  \usebibmacro{doi+url}%
   \newunit\newblock
   \printfield{addendum}%
   \newunit\newblock
@@ -1712,352 +1922,165 @@
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{presentation}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
+  \usebibmacro{title}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
+  \newunit\newblock
+  \usebibmacro{editor+trans}%
+  \setunit*{\addcomma\addspace}\newblock
+  \usebibmacro{maintitle+booktitle}%
+  \newunit\newblock
+  \usebibmacro{eventinfo}%
+  \newunit\newblock
+  \printlist{organization}%
+  \newunit
+  \usebibmacro{location+publisher}%
+  \newunit\newblock
+  \printfield{pages}%
+  \newunit\newblock
+  \usebibmacro{origyear}%
+  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
+  \printfield{addendum}%
+  \newunit\newblock
+  \iftoggle{bbx:related}
+    {\usebibmacro{related:init}%
+     \usebibmacro{related}}
+    {}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{report}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \usebibmacro{apa:reportnum}%
+  \setunit{\addspace}\newblock
+  \printfield{note}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
   \newunit\newblock
   \printlist{institution}%
   \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
   \usebibmacro{location+publisher}%
   \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{thesis}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \ifthenelse{\NOT\iffieldundef{title}\OR\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \usebibmacro{type+institution}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{review}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{reviewauthor}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
+  \usebibmacro{doi+url}%
   \newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \newunit\newblock
-  \ifbool{bbx:noreviewauthor}{\usebibmacro{labelyear+extradate}}{}%
-  \newunit\newblock
-  \usebibmacro{journal+issuetitle}%
-  \newunit\newblock
-  \printfield{note}%
-  \setunit{\bibpagespunct}%
-  \printfield{pages}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{misc}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \newunit\newblock
-  \usebibmacro{title}%
-  \ifthenelse{\iffieldundef{title}\AND\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \printfield{entrysubtype}%
-  \newunit\newblock
-  \printfield{howpublished}%
-  \newunit\newblock
-  \printfield{type}%
-  \newunit
-  \printfield{version}%
-  \newunit
-  \printfield{note}%
-  \newunit\newblock
-  \printlist{organization}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{data}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \newunit\newblock
-  \usebibmacro{datatitle}%
-  \newunit\newblock
-  \printfield{type}%
-  \newunit
-  \printfield{version}%
-  \newunit
-  \printfield{note}%
-  \newunit\newblock
-  \printlist{organization}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{letter}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \newunit\newblock
-  \printlist{institution}%
-  \setunit{\addspace}\newblock
-  \printfield{number}%
-  \newunit\newblock
-  \printfield{note}%
-  \setunit{\addcomma\addspace}\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{letters}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \newunit\newblock
-  \printlist{institution}%
-  \setunit{\addspace}\newblock
-  \printfield{number}%
-  \newunit\newblock
-  \printfield{note}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{video}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{writer}%
-  \usebibmacro{director}%
-  \usebibmacro{producer}%
-  \newunit\newblock
-  \usebibmacro{labelyear+extradate}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \setunit{\addspace}\newblock
-  \printfield{entrysubtype}%
-  \newunit\newblock
-  \usebibmacro{tvseries}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{movie}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{writer}%
-  \usebibmacro{director}%
-  \usebibmacro{producer}%
-  \newunit\newblock
-  \usebibmacro{labelyear+extradate}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \setunit{\addspace}\newblock
-  \printfield{entrysubtype}%
-  \newunit\newblock
-  \usebibmacro{tvseries}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{audio}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{writer}%
-  \usebibmacro{director}%
-  \usebibmacro{producer}%
-  \newunit\newblock
-  \usebibmacro{labelyear+extradate}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \setunit{\addspace}\newblock
-  \printfield{entrysubtype}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
-  \usebibmacro{finentry}}
-
-\DeclareBibliographyDriver{music}{%
-  \usebibmacro{bibindex}%
-  \usebibmacro{begentry}%
-  \usebibmacro{author}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{title}%
-  \ifthenelse{\NOT\iffieldundef{title}\OR\boolean{bbx:titleinauthpos}}{\newunit}{\setunit{\addspace}}\newblock
-  \usebibmacro{album}%
-  \newunit\newblock
-  \usebibmacro{location+publisher}%
-  \printfield{addendum}%
-  \newunit\newblock
-  \iftoggle{bbx:related}
-    {\usebibmacro{related:init}%
-     \usebibmacro{related}}
-    {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{software}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
-  \usebibmacro{apa:softwaretitle}%
+  \setunit{\printdelim{nametitledelim}}\newblock
+  \usebibmacro{appentry}%
+  \usebibmacro{title}%
   \newunit\newblock
   \usebibmacro{location+publisher}%
   \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
+  \usebibmacro{doi+url}%
+  \newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{thesis}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
+  \usebibmacro{title}%
+  \newunit\newblock
+  \printlist{publisher}%
+  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newunit\newblock
+  \printfield{addendum}%
+  \newunit\newblock
+  \iftoggle{bbx:related}
+    {\usebibmacro{related:init}%
+     \usebibmacro{related}}
+    {}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 \DeclareBibliographyDriver{unpublished}{%
   \usebibmacro{bibindex}%
   \usebibmacro{begentry}%
   \usebibmacro{author/editor}%
-  \setunit{\labelnamepunct}\newblock
+  \setunit{\printdelim{nametitledelim}}\newblock
   \usebibmacro{title}%
-  \newunit\newblock
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
+  \setunit{\addspace}%
   \printfield{howpublished}%
-  \setunit{\addcomma\addspace}\newblock
+  \newunit\newblock
+  \printfield{venue}%
+  \setunit{\addcomma\addspace}
   \printlist{institution}%
   \newunit\newblock
-  \printfield{note}%
-  \setunit*{\addcomma\addspace}\newblock
-  \printlist{location}%
-  \newunit\newblock
-  \usebibmacro{doi+eprint+url}%
-  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
   \printfield{addendum}%
   \newunit\newblock
   \iftoggle{bbx:related}
     {\usebibmacro{related:init}%
      \usebibmacro{related}}
     {}%
-  \usebibmacro{apa:pageref}%
-  \usebibmacro{apa:finpunct}
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
+  \usebibmacro{finentry}}
+
+\DeclareBibliographyDriver{video}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{begentry}%
+  \usebibmacro{author/editor}%
+  \setunit{\printdelim{nametitledelim}}\newblock
+  \usebibmacro{title}%
+  \setunit{\addspace}\newblock
+  \usebibmacro{apa:related}%
+  \newunit\newblock
+  \usebibmacro{mainvideo}%
+  \newunit\newblock
+  \usebibmacro{location+publisher}%
+  \newunit\newblock
+  \usebibmacro{doi+url}%
+  \newblock
+  \printfield{addendum}%
+  \newunit\newblock
+  \iftoggle{bbx:related}
+    {\usebibmacro{related:init}%
+     \usebibmacro{related}}
+    {}%
+  \usebibmacro{pageref}%
+  \usebibmacro{annotation}%
   \usebibmacro{finentry}}
 
 %
@@ -2105,76 +2128,53 @@
          {\bibcpstring{type\thefield{#1type}s}}
          {\bibcpstring{type\thefield{#1type}}}}}
 
-\renewbibmacro*{doi+eprint+url}{%
-  \iftoggle{bbx:doi}
-    {\printfield{doi}%
-     \iffieldundef{doi}{}{\renewcommand*{\finentrypunct}{\relax}}}
-    {}%
-  \newunit\newblock
-  \iftoggle{bbx:eprint}
-    {\usebibmacro{eprint}%
-     \iffieldundef{eprint}{}{\renewcommand*{\finentrypunct}{\relax}}}
-    {}%
-  \newunit\newblock
-  \iftoggle{bbx:url}
-    {\usebibmacro{url+urldate}%
-     \iffieldundef{url}{}{\renewcommand*{\finentrypunct}{\relax}}}
-    {}}
 
+
+%(APA 9.35) No periods after URLS and DOIs
+% we'll override a global url option for for @online entries
+\ExecuteBibliographyOptions[online]{url=true}
 
 \DeclareFieldFormat{doi}{%
-  doi\addcolon
   \ifhyperref
-    {\href{https://dx.doi.org/#1}{\nolinkurl{#1}}}
-    {\nolinkurl{#1}}}
+    {\href{https://doi.org/#1}{\nolinkurl{https://doi.org/#1}}}
+    {\nolinkurl{https://doi.org/#1}}%
+  \nopunct}
 
-% APA 6th 
-\newbibmacro*{location+publisher}{%
-  \printlist[default][1-1]{location}%
-  \setunit*{\addcolon\space}%
-  \printlist{publisher}%
-  \newunit}
+\DeclareFieldFormat{url}{\url{#1}\nopunct}
 
-\newbibmacro*{type+institution}{%
-  \setunit{\addspace}%
-  \ifthenelse{\iffieldundef{type}\AND\iffieldundef{institution}}
+\DeclareFieldFormat{urldate}{%
+  \bibstring{retrieved}\space#1%
+  \urldatecomma\bibstring{from}}
+
+\newbibmacro*{doi+url}{%
+  \ifboolexpr{          test {\iffieldundef{doi}}
+                 or not togl {bbx:doi}}
+    {\ifboolexpr{       test {\iffieldundef{url}}
+                 or not togl {bbx:url}}
+       {\newunit}
+       {\usebibmacro{url+urldate}%
+        \setunit{\addspace}}}
+    {\printfield{doi}%
+     \setunit{\addspace}}}
+
+\renewbibmacro*{url+urldate}{%
+  \ifthenelse{\iffieldundef{url}\OR\NOT\iffieldundef{doi}}
     {}
-    {\printtext[parens]{%
-       \iflistundef{institution}
-         {\setunit*{\addspace}}
-         {\setunit*{\addcolon\space}}%
-       \printfield{type}%
-       \setunit*{\addcomma\space}%
-       \printlist{institution}%
-       \setunit*{\addcomma\space}%
-       \printlist{location}}%
-     \newunit}}
+    {\iffieldundef{urlyear}
+      {}
+      {\printurldate
+       \setunit{\addspace}}%
+     \printfield{url}}}
 
-\newbibmacro*{labeltitle}{%
-  \iffieldundef{label}
-    {\printfield{title}%
-     \clearfield{title}%
-     \setunit{\addspace}%
-     \printfield{entrysubtype}%
-     \clearfield{entrysubtype}%
-     \global\booltrue{bbx:titleinauthpos}}
-    {\printfield{label}}}
+\newbibmacro*{location+publisher}{%
+  \printlist{location}%
+  \setunit*{\addcomma\space}%
+  \printlist{publisher}}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Wrapper for backrefs
-
-\newbibmacro{apa:pageref}{%
-  \ifbool{apa:backref}{\usebibmacro{pageref}}{}}
-
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-
 % Unchanged from authoryear-comp
 
 \DeclareBibliographyOption{dashed}[true]{%
@@ -2186,10 +2186,6 @@
 
 \DeclareFieldFormat{shorthandwidth}{#1}
 \setlength{\bibitemsep}{0pt}
-
-\DeclareNameAlias{author}{sortname}
-\DeclareNameAlias{editor}{sortname}
-\DeclareNameAlias{translator}{sortname}
 
 \defbibenvironment{bibliography}
   {\list
